@@ -12,10 +12,12 @@ interface AnswerFormProps {
 }
 
 export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmit }: AnswerFormProps) {
+  const canSubmit = Boolean(answer.trim());
+
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
 
-    if (answer.trim() || question.kind === "multiple-choice") {
+    if (canSubmit) {
       onSubmit();
     }
   }
@@ -54,7 +56,7 @@ export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmi
           type="text"
           value={answer}
         />
-        <Button disabled={disabled || !answer.trim()} type="submit">
+        <Button disabled={disabled || !canSubmit} type="submit">
           送出
         </Button>
       </div>
