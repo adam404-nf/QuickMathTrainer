@@ -1,12 +1,12 @@
 # 06 Tasks
 
 ## P0：MVP 必做
-- [ ] 建立前端專案與基本頁面結構。
-- [ ] 實作題卡 UI：題目、答案輸入、提交、反饋。
-- [ ] 實作 Question Engine 的第一批題型。
-- [ ] 實作 Practice Session：題序、計時、下一題、結束。
-- [ ] 實作 Result Tracker：正確率、平均用時、錯題。
-- [ ] 實作 localStorage 保存最近紀錄與設定。
+- [x] 建立前端專案與基本頁面結構。
+- [x] 實作題卡 UI：題目、答案輸入、提交、反饋。
+- [x] 實作 Question Engine 的第一批題型。
+- [x] 實作 Practice Session：題序、計時、下一題、結束。
+- [x] 實作 Result Tracker：正確率、平均用時、錯題。
+- [x] 實作 localStorage 保存最近紀錄與設定。
 
 ## P1：體驗改善
 - [ ] 支援全鍵盤操作與行動端版面。

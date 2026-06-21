@@ -1,0 +1,108 @@
+.page {
+  display: grid;
+  gap: 2rem;
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: clamp(1rem, 4vw, 3rem);
+}
+
+.hero {
+  align-items: end;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+}
+
+.hero h1 {
+  color: #0f172a;
+  font-size: clamp(2.2rem, 6vw, 4.8rem);
+  letter-spacing: -0.07em;
+  line-height: 0.95;
+  margin: 0;
+}
+
+.hero p {
+  color: #475569;
+  font-size: 1.08rem;
+  max-width: 42rem;
+}
+
+.eyebrow {
+  color: #2563eb;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+}
+
+.settingsCard {
+  display: grid;
+  gap: 1rem;
+}
+
+.settingsCard label {
+  color: #475569;
+  display: grid;
+  font-size: 0.9rem;
+  font-weight: 700;
+  gap: 0.35rem;
+}
+
+.settingsCard select {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.9rem;
+  color: #0f172a;
+  font: inherit;
+  padding: 0.7rem 0.85rem;
+}
+
+.practiceLayout {
+  align-items: start;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+}
+
+.practiceColumn {
+  display: grid;
+  gap: 1rem;
+}
+
+.sidePanel {
+  display: grid;
+  gap: 1rem;
+}
+
+.sidePanel h2 {
+  margin-top: 0;
+}
+
+.historyStats {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+}
+
+.historyStats div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.historyStats dt {
+  color: #64748b;
+}
+
+.historyStats dd {
+  color: #0f172a;
+  font-weight: 800;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .practiceLayout {
+    grid-template-columns: 1fr;
+  }
+}
