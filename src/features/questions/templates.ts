@@ -41,6 +41,10 @@ function makeQuestion(params: {
   };
 }
 
+function formatDecimal(value: number): string {
+  return String(Number(value.toFixed(4)));
+}
+
 export const arithmeticTemplates: readonly QuestionTemplate[] = [
   ({ difficulty, kind }) => {
     const base = difficulty === "easy" ? randomInt(11, 19) : randomInt(21, 49);
@@ -293,6 +297,57 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       ),
     });
   },
+  ({ difficulty, kind }) => {
+    const left = pickOne([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+    const right = pickOne([0.1, 0.2, 0.3, 0.4, 0.5]);
+    const answer = left + right;
+
+    return makeQuestion({
+      type: "fractions",
+      prompt: `${formatDecimal(left)} + ${formatDecimal(right)} = ?`,
+      answer: formatDecimal(answer),
+      difficulty,
+      tags: ["decimals", "addition"],
+      mentalCost: difficulty === "easy" ? 2 : 3,
+      strategy: "對齊小數位後再相加。",
+      kind,
+      distractors: [answer + 0.1, answer - 0.1, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const left = pickOne([0.2, 0.3, 0.4, 0.5, 0.6, 0.8]);
+    const right = randomInt(2, difficulty === "hard" ? 9 : 6);
+    const answer = left * right;
+
+    return makeQuestion({
+      type: "fractions",
+      prompt: `${formatDecimal(left)} × ${right} = ?`,
+      answer: formatDecimal(answer),
+      difficulty,
+      tags: ["decimals", "multiplication"],
+      mentalCost: difficulty === "easy" ? 2 : 3,
+      strategy: "先當整數相乘，再補回小數位。",
+      kind,
+      distractors: [answer + 0.2, answer - 0.2, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const whole = randomInt(1, difficulty === "hard" ? 9 : 6);
+    const fraction = pickOne([0.1, 0.2, 0.3, 0.4, 0.5]);
+    const answer = whole - fraction;
+
+    return makeQuestion({
+      type: "fractions",
+      prompt: `${whole} - ${formatDecimal(fraction)} = ?`,
+      answer: formatDecimal(answer),
+      difficulty,
+      tags: ["decimals", "subtraction"],
+      mentalCost: difficulty === "easy" ? 2 : 3,
+      strategy: "把整數借位後再減小數部分。",
+      kind,
+      distractors: [answer + 0.1, answer - 0.1, whole + fraction, Math.max(0, answer - 1)].map(formatDecimal),
+    });
+  },
 ];
 
 export const allTemplates: readonly QuestionTemplate[] = [
@@ -319,4 +374,19 @@ export function filterTemplates(
   }
 
   return templates.filter((template) => templateMatchesTags(template, tags));
+}
+
+export function getQuestionTypesForTags(tags: readonly string[]): QuestionType[] {
+  const types = new Set<QuestionType>();
+
+  for (const template of allTemplates) {
+    if (!templateMatchesTags(template, tags)) {
+      continue;
+    }
+
+    const sample = template({ difficulty: "medium", kind: "fill-in" });
+    types.add(sample.type);
+  }
+
+  return [...types];
 }

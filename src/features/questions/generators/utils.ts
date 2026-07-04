@@ -6,8 +6,13 @@ import { chooseQuestionKind, pickOne } from "../utils";
 export function generateFromTemplates(
   templates: readonly QuestionTemplate[],
   input: GenerateQuestionInput,
-): Question {
+): Question | undefined {
   const filtered = filterTemplates(templates, input.targetTags);
+
+  if (input.targetTags && input.targetTags.length > 0 && filtered.length === 0) {
+    return undefined;
+  }
+
   const pool = filtered.length > 0 ? filtered : templates;
   const template = pickOne(pool);
 

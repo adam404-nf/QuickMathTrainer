@@ -64,4 +64,49 @@ describe("question registry", () => {
 
     expect(matched).toBeGreaterThan(0);
   });
+
+  it("keeps weakness-focused sessions on decimal tags instead of falling back to integers", () => {
+    let matched = 0;
+
+    for (let index = 0; index < 30; index += 1) {
+      const question = generateQuestion({
+        mode: "weakness-focused",
+        difficulty: "medium",
+        targetTags: ["decimals"],
+        targetTypes: ["arithmetic", "fractions"],
+        context: {
+          recentQuestionIds: [],
+          seenQuestionIds: new Set(),
+        },
+      });
+
+      if (questionMatchesTargets(question, ["decimals"])) {
+        matched += 1;
+      }
+    }
+
+    expect(matched).toBe(30);
+  });
+
+  it("generates multi-step templates in easy mixed practice", () => {
+    let foundMultiStep = false;
+
+    for (let index = 0; index < 40; index += 1) {
+      const question = generateQuestion({
+        mode: "mixed",
+        difficulty: "easy",
+        context: {
+          recentQuestionIds: [],
+          seenQuestionIds: new Set(),
+        },
+      });
+
+      if (question.tags.includes("order-of-operations")) {
+        foundMultiStep = true;
+        break;
+      }
+    }
+
+    expect(foundMultiStep).toBe(true);
+  });
 });
