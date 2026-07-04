@@ -168,6 +168,77 @@
   padding: 0.75rem;
 }
 
+.weaknessSection,
+.weaknessGroup {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.weaknessSection h3,
+.weaknessGroup h4 {
+  margin: 0;
+}
+
+.weaknessGroup ul {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.weaknessItem {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 0.9rem;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.85rem;
+}
+
+.weaknessHeader {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.weaknessStatus {
+  color: #c2410c;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.weaknessStats,
+.weaknessDiagnosis {
+  color: #7c2d12;
+  margin: 0;
+}
+
+.weaknessDiagnosis {
+  font-size: 0.95rem;
+}
+
+.focusButton {
+  justify-self: start;
+}
+
+.focusBanner {
+  background: #eff6ff;
+  border-radius: 999px;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  padding: 0.45rem 0.85rem;
+  text-align: center;
+}
+
+.modeNotice {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   .answerRow,
   .options,

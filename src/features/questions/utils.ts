@@ -20,6 +20,10 @@ export function normalizeAnswer(answer: string): string {
   return answer.trim().replace(/\s+/g, "").toLowerCase();
 }
 
+export function isSymbolicAbsoluteAnswer(answer: string): boolean {
+  return /^\|[a-z]\|$/.test(normalizeAnswer(answer));
+}
+
 export function parseNumericAnswer(answer: string): number | undefined {
   const normalized = normalizeAnswer(answer);
   const fractionMatch = normalized.match(/^(-?\d+)\/(-?\d+)$/);
@@ -40,6 +44,10 @@ export function isAnswerCorrect(userAnswer: string, expectedAnswer: string): boo
 
   if (normalizedUserAnswer === normalizedExpectedAnswer) {
     return true;
+  }
+
+  if (isSymbolicAbsoluteAnswer(normalizedExpectedAnswer)) {
+    return false;
   }
 
   const userNumeric = parseNumericAnswer(normalizedUserAnswer);

@@ -52,7 +52,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       prompt: `${base} × ${partner} = ?`,
       answer: String(answer),
       difficulty,
-      tags: ["multiplication", "integer"],
+      tags: ["multiplication"],
       mentalCost: difficulty === "easy" ? 2 : 3,
       strategy: "拆分乘法並合併部分積。",
       kind,
@@ -69,7 +69,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       prompt: `${left} + ${right} = ?`,
       answer: String(answer),
       difficulty,
-      tags: ["addition", "integer"],
+      tags: ["addition"],
       mentalCost: difficulty === "easy" ? 1 : 2,
       strategy: "先湊整十再加剩餘數字。",
       kind,
@@ -86,11 +86,81 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       prompt: `${dividend} ÷ ${divisor} = ?`,
       answer: String(answer),
       difficulty,
-      tags: ["division", "integer"],
+      tags: ["division"],
       mentalCost: difficulty === "easy" ? 1 : 2,
       strategy: "用乘法反推商。",
       kind,
       distractors: [answer + 1, answer - 1, answer + divisor, answer - divisor].map(String),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const a = randomInt(2, difficulty === "hard" ? 18 : 12);
+    const b = randomInt(2, difficulty === "hard" ? 15 : 9);
+    const c = randomInt(2, difficulty === "easy" ? 6 : 9);
+    const answer = (a + b) * c;
+
+    return makeQuestion({
+      type: "arithmetic",
+      prompt: `(${a} + ${b}) × ${c} = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["addition", "multiplication", "order-of-operations", "working-memory"],
+      mentalCost: difficulty === "hard" ? 4 : 3,
+      strategy: "先算括號內加法，記住結果後再乘。",
+      kind,
+      distractors: [a + b + c, a * b * c, answer + c, answer - c].map(String),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const a = randomInt(3, difficulty === "hard" ? 12 : 9);
+    const b = randomInt(2, difficulty === "hard" ? 9 : 7);
+    const c = randomInt(5, difficulty === "easy" ? 20 : 40);
+    const answer = a * b + c;
+
+    return makeQuestion({
+      type: "arithmetic",
+      prompt: `(${a} × ${b}) + ${c} = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["multiplication", "addition", "order-of-operations", "working-memory"],
+      mentalCost: difficulty === "hard" ? 4 : 3,
+      strategy: "先算乘法，記住積後再加。",
+      kind,
+      distractors: [a * (b + c), answer + 1, answer - 1, a + b + c].map(String),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const a = randomInt(4, difficulty === "hard" ? 14 : 11);
+    const b = randomInt(2, difficulty === "hard" ? 10 : 7);
+    const answer = a * a - b * b;
+
+    return makeQuestion({
+      type: "arithmetic",
+      prompt: `${a}² - ${b}² = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["multiplication", "subtraction", "working-memory"],
+      mentalCost: difficulty === "hard" ? 4 : 3,
+      strategy: "分別算兩個平方，記住後再相減。",
+      kind,
+      distractors: [(a - b) ** 2, a + b, answer + b, answer - b].map(String),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const a = randomInt(4, difficulty === "hard" ? 13 : 10);
+    const b = randomInt(2, difficulty === "hard" ? 9 : 6);
+    const answer = (a + b) * (a - b);
+
+    return makeQuestion({
+      type: "arithmetic",
+      prompt: `(${a} + ${b})(${a} - ${b}) = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["addition", "subtraction", "multiplication", "working-memory"],
+      mentalCost: difficulty === "hard" ? 4 : 3,
+      strategy: "先算和與差，記住兩個結果再相乘。",
+      kind,
+      distractors: [a * a + b * b, a * a - b * b + 1, (a + b) + (a - b), answer + b].map(String),
     });
   },
 ];
@@ -105,7 +175,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       prompt: `${value}² = ?`,
       answer: String(answer),
       difficulty,
-      tags: ["square", "powers"],
+      tags: ["multiplication"],
       mentalCost: difficulty === "easy" ? 1 : 2,
       strategy: "記憶常用平方或用平方差展開。",
       kind,
@@ -121,7 +191,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       prompt: `√${radicand} = ?`,
       answer: String(root),
       difficulty,
-      tags: ["square-root", "powers"],
+      tags: ["square-root"],
       mentalCost: difficulty === "easy" ? 1 : 2,
       strategy: "辨識常見完全平方數。",
       kind,
@@ -138,11 +208,43 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       prompt: `${base}^${exponent} = ?`,
       answer: String(answer),
       difficulty,
-      tags: ["exponent", "powers"],
+      tags: ["multiplication", "working-memory"],
       mentalCost: difficulty === "easy" ? 2 : 3,
       strategy: "連續乘法並保留中間結果。",
       kind,
       distractors: [answer + base, answer - base, base ** (exponent - 1), answer + exponent].map(String),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const value = randomInt(3, difficulty === "hard" ? 15 : 11);
+    const signed = pickOne([-value, value]);
+    const answer = Math.abs(signed);
+
+    return makeQuestion({
+      type: "powers",
+      prompt: `√((${signed})²) = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["square-root", "absolute-value"],
+      mentalCost: difficulty === "easy" ? 2 : 3,
+      strategy: "先平方去掉符號，再開方得絕對值。",
+      kind,
+      distractors: [signed, -answer, answer + 1, answer - 1].map(String),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const variable = pickOne(["a", "x", "n"] as const);
+
+    return makeQuestion({
+      type: "powers",
+      prompt: `√(${variable}²) = ?（以 |${variable}| 格式作答）`,
+      answer: `|${variable}|`,
+      difficulty,
+      tags: ["square-root", "absolute-value", "symbolic-simplification"],
+      mentalCost: difficulty === "hard" ? 4 : 3,
+      strategy: "平方根要寫成絕對值，避免漏掉 | |。",
+      kind,
+      distractors: [variable, `-${variable}`, `${variable}²`, `±${variable}`],
     });
   },
 ];
@@ -160,7 +262,7 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       prompt: `${leftNumerator}/${denominator} + ${rightNumerator}/${denominator} = ?`,
       answer,
       difficulty,
-      tags: ["fractions", "same-denominator"],
+      tags: ["fractions"],
       mentalCost: difficulty === "easy" ? 2 : 3,
       strategy: "同分母相加時只加分子。",
       kind,
@@ -192,3 +294,29 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
     });
   },
 ];
+
+export const allTemplates: readonly QuestionTemplate[] = [
+  ...arithmeticTemplates,
+  ...powersTemplates,
+  ...fractionTemplates,
+];
+
+export function templateMatchesTags(template: QuestionTemplate, tags: readonly string[]): boolean {
+  if (tags.length === 0) {
+    return true;
+  }
+
+  const sample = template({ difficulty: "medium", kind: "fill-in" });
+  return sample.tags.some((tag) => tags.includes(tag));
+}
+
+export function filterTemplates(
+  templates: readonly QuestionTemplate[],
+  tags?: readonly string[],
+): QuestionTemplate[] {
+  if (!tags || tags.length === 0) {
+    return [...templates];
+  }
+
+  return templates.filter((template) => templateMatchesTags(template, tags));
+}

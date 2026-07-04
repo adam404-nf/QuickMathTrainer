@@ -1,4 +1,5 @@
 import { generateQuestion } from "../questions/registry";
+import type { GenerateQuestionInput } from "../questions/types";
 import { isAnswerCorrect } from "../questions/utils";
 import type { PracticePreferences } from "../settings/types";
 import type { Attempt } from "../results/types";
@@ -18,15 +19,26 @@ function getSeenQuestionIds(attempts: readonly Attempt[], currentQuestionId?: st
   return new Set(ids);
 }
 
-export function createPracticeSession(preferences: PracticePreferences): PracticeSession {
-  const question = generateQuestion({
+function buildGenerateInput(
+  preferences: PracticePreferences,
+  context: GenerateQuestionInput["context"],
+): GenerateQuestionInput {
+  return {
     mode: preferences.mode,
     difficulty: preferences.difficulty,
-    context: {
+    context,
+    targetTags: preferences.mode === "weakness-focused" ? preferences.targetTags : undefined,
+    targetTypes: preferences.mode === "weakness-focused" ? preferences.targetTypes : undefined,
+  };
+}
+
+export function createPracticeSession(preferences: PracticePreferences): PracticeSession {
+  const question = generateQuestion(
+    buildGenerateInput(preferences, {
       recentQuestionIds: [],
       seenQuestionIds: new Set(),
-    },
-  });
+    }),
+  );
 
   return {
     id: createSessionId(),
@@ -72,14 +84,12 @@ export function advanceSession(session: PracticeSession, attempt: Attempt): Prac
     };
   }
 
-  const nextQuestion = generateQuestion({
-    mode: session.preferences.mode,
-    difficulty: session.preferences.difficulty,
-    context: {
+  const nextQuestion = generateQuestion(
+    buildGenerateInput(session.preferences, {
       recentQuestionIds: attempts.slice(-5).map((item) => item.questionId),
       seenQuestionIds: getSeenQuestionIds(attempts, session.currentQuestion.id),
-    },
-  });
+    }),
+  );
 
   return {
     ...session,

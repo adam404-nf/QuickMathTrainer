@@ -1,4 +1,5 @@
 import type { Difficulty, PracticeMode, Question, QuestionType } from "../questions/types";
+import type { WeaknessBreakdown } from "./weakness";
 
 export interface Attempt {
   id: string;
@@ -18,6 +19,7 @@ export interface SessionSummary {
   accuracy: number;
   averageTimeMs: number;
   mistakes: Attempt[];
+  weakness: WeaknessBreakdown;
 }
 
 export interface PracticeHistoryEntry {

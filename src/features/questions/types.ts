@@ -4,7 +4,7 @@ export type QuestionKind = "fill-in" | "multiple-choice";
 
 export type QuestionType = "arithmetic" | "fractions" | "powers";
 
-export type PracticeMode = "mixed" | QuestionType;
+export type PracticeMode = "mixed" | "weakness-focused" | QuestionType;
 
 export type MentalCost = 1 | 2 | 3 | 4 | 5;
 
@@ -30,6 +30,8 @@ export interface GenerateQuestionInput {
   mode: PracticeMode;
   difficulty: Difficulty;
   context: QuestionContext;
+  targetTags?: string[];
+  targetTypes?: QuestionType[];
 }
 
 export type QuestionGenerator = (

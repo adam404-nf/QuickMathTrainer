@@ -19,4 +19,11 @@ describe("question answer utilities", () => {
     expect(parseNumericAnswer("3/4")).toBe(0.75);
     expect(parseNumericAnswer("1/0")).toBeUndefined();
   });
+
+  it("accepts fixed-format absolute-value symbolic answers only", () => {
+    expect(isAnswerCorrect("|a|", "|a|")).toBe(true);
+    expect(isAnswerCorrect("|A|", "|a|")).toBe(true);
+    expect(isAnswerCorrect("a", "|a|")).toBe(false);
+    expect(isAnswerCorrect("abs(a)", "|a|")).toBe(false);
+  });
 });

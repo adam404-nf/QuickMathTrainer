@@ -14,7 +14,7 @@ interface CreateHistoryEntryInput {
 export function createHistoryEntry(input: CreateHistoryEntryInput): PracticeHistoryEntry {
   return {
     ...input,
-    summary: createSessionSummary(input.attempts),
+    summary: createSessionSummary(input.attempts, input.difficulty),
   };
 }
 

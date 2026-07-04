@@ -58,6 +58,12 @@
   padding: 0.7rem 0.85rem;
 }
 
+.modeNotice {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
 .practiceLayout {
   align-items: start;
   display: grid;

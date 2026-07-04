@@ -6,8 +6,19 @@ import { SessionSummaryPanel } from "../../features/practice/components/SessionS
 import { usePracticeSession } from "../../features/practice/hooks/usePracticeSession";
 import { createHistoryEntry, prependHistoryEntry } from "../../features/results/history";
 import type { PracticeHistoryEntry } from "../../features/results/types";
-import { defaultPracticePreferences } from "../../features/settings/preferences";
-import type { PracticePreferences } from "../../features/settings/types";
+import { deriveWeaknessTargets } from "../../features/results/weaknessProfile";
+import { getWeaknessTargetTags } from "../../features/results/weakness";
+import { createWeaknessBreakdown } from "../../features/results/weakness";
+import {
+  defaultPracticePreferences,
+  normalizePracticePreferences,
+} from "../../features/settings/preferences";
+import {
+  SESSION_LENGTH_LABELS,
+  getQuestionLimitForPreset,
+  inferPresetFromQuestionLimit,
+} from "../../features/settings/sessionLength";
+import type { PracticePreferences, SessionLengthPreset } from "../../features/settings/types";
 import { Card } from "../../shared/components/Card";
 import { createLocalStorageAdapter } from "../../shared/storage/localStorageAdapter";
 import { formatMilliseconds, formatPercent } from "../../shared/utils/format";
@@ -16,12 +27,27 @@ import styles from "./PracticePage.module.css";
 const preferencesStorage = createLocalStorageAdapter<PracticePreferences>("quickmathowo.preferences.v1");
 const historyStorage = createLocalStorageAdapter<PracticeHistoryEntry[]>("quickmathowo.history.v1");
 
-export function PracticePage() {
-  const [preferences, setPreferences] = useState<PracticePreferences>(() => {
-    return preferencesStorage.load() ?? defaultPracticePreferences;
+function loadPreferences(): PracticePreferences {
+  const stored = preferencesStorage.load();
+
+  if (!stored) {
+    return defaultPracticePreferences;
+  }
+
+  const sessionLength =
+    stored.sessionLength ?? inferPresetFromQuestionLimit(stored.questionLimit ?? defaultPracticePreferences.questionLimit);
+
+  return normalizePracticePreferences({
+    ...stored,
+    sessionLength,
   });
+}
+
+export function PracticePage() {
+  const [preferences, setPreferences] = useState<PracticePreferences>(() => loadPreferences());
   const [history, setHistory] = useState<PracticeHistoryEntry[]>(() => historyStorage.load() ?? []);
   const [savedSessionIds, setSavedSessionIds] = useState<Set<string>>(() => new Set());
+  const [modeNotice, setModeNotice] = useState<string | undefined>();
   const [answer, setAnswer] = useState("");
   const practice = usePracticeSession(preferences);
 
@@ -47,11 +73,75 @@ export function PracticePage() {
     setSavedSessionIds((currentIds) => new Set(currentIds).add(practice.session.id));
   }, [practice.session, savedSessionIds]);
 
-  function updatePreferences(nextPreferences: PracticePreferences): void {
-    setPreferences(nextPreferences);
-    preferencesStorage.save(nextPreferences);
+  function applyPreferences(nextPreferences: PracticePreferences): void {
+    const normalized = normalizePracticePreferences(nextPreferences);
+    setPreferences(normalized);
+    preferencesStorage.save(normalized);
     setAnswer("");
-    practice.restart(nextPreferences);
+    practice.restart(normalized);
+  }
+
+  function updatePreferences(nextPreferences: PracticePreferences): void {
+    setModeNotice(undefined);
+    applyPreferences(nextPreferences);
+  }
+
+  function startWeaknessFocusedMode(tags: string[]): void {
+    const targets = deriveWeaknessTargets(history, preferences.difficulty);
+
+    if (!targets.isReady && tags.length === 0) {
+      setModeNotice(targets.message);
+      return;
+    }
+
+    const targetTags = tags.length > 0 ? tags : targets.tags;
+
+    applyPreferences({
+      ...preferences,
+      mode: "weakness-focused",
+      targetTags,
+      targetTypes: targets.types,
+    });
+  }
+
+  function handleModeChange(mode: PracticePreferences["mode"]): void {
+    if (mode === "weakness-focused") {
+      const targets = deriveWeaknessTargets(history, preferences.difficulty);
+
+      if (!targets.isReady) {
+        setModeNotice(targets.message);
+        updatePreferences({
+          ...preferences,
+          mode: "mixed",
+          targetTags: undefined,
+          targetTypes: undefined,
+        });
+        return;
+      }
+
+      updatePreferences({
+        ...preferences,
+        mode: "weakness-focused",
+        targetTags: targets.tags,
+        targetTypes: targets.types,
+      });
+      return;
+    }
+
+    updatePreferences({
+      ...preferences,
+      mode,
+      targetTags: undefined,
+      targetTypes: undefined,
+    });
+  }
+
+  function handleSessionLengthChange(sessionLength: SessionLengthPreset): void {
+    updatePreferences({
+      ...preferences,
+      sessionLength,
+      questionLimit: getQuestionLimitForPreset(sessionLength),
+    });
   }
 
   function handleSubmit(): void {
@@ -61,6 +151,11 @@ export function PracticePage() {
   function handleNext(): void {
     practice.next();
     setAnswer("");
+  }
+
+  function handleFocusAllWeaknesses(): void {
+    const breakdown = createWeaknessBreakdown(practice.session.attempts, preferences.difficulty);
+    startWeaknessFocusedMode(getWeaknessTargetTags(breakdown, 3));
   }
 
   const latestHistory = history[0];
@@ -80,18 +175,14 @@ export function PracticePage() {
           <label>
             模式
             <select
-              onChange={(event) =>
-                updatePreferences({
-                  ...preferences,
-                  mode: event.target.value as PracticePreferences["mode"],
-                })
-              }
+              onChange={(event) => handleModeChange(event.target.value as PracticePreferences["mode"])}
               value={preferences.mode}
             >
               <option value="mixed">混合練習</option>
               <option value="arithmetic">整數四則</option>
               <option value="powers">冪次根號</option>
               <option value="fractions">分數小數</option>
+              <option value="weakness-focused">弱項專攻</option>
             </select>
           </label>
           <label>
@@ -111,32 +202,39 @@ export function PracticePage() {
             </select>
           </label>
           <label>
-            題數
+            題量
             <select
-              onChange={(event) =>
-                updatePreferences({
-                  ...preferences,
-                  questionLimit: Number(event.target.value),
-                })
-              }
-              value={preferences.questionLimit}
+              onChange={(event) => handleSessionLengthChange(event.target.value as SessionLengthPreset)}
+              value={preferences.sessionLength}
             >
-              <option value={5}>5 題</option>
-              <option value={10}>10 題</option>
-              <option value={20}>20 題</option>
+              {(Object.keys(SESSION_LENGTH_LABELS) as SessionLengthPreset[]).map((preset) => (
+                <option key={preset} value={preset}>
+                  {SESSION_LENGTH_LABELS[preset]}
+                </option>
+              ))}
             </select>
           </label>
+          {modeNotice ? <p className={styles.modeNotice}>{modeNotice}</p> : null}
         </Card>
       </section>
 
       <section className={styles.practiceLayout}>
         <div className={styles.practiceColumn}>
           {practice.session.status === "finished" ? (
-            <SessionSummaryPanel attempts={practice.session.attempts} onRestart={() => practice.restart()} />
+            <SessionSummaryPanel
+              attempts={practice.session.attempts}
+              difficulty={preferences.difficulty}
+              onFocusAllWeaknesses={handleFocusAllWeaknesses}
+              onFocusWeakness={(tags) => startWeaknessFocusedMode(tags)}
+              onRestart={() => practice.restart()}
+            />
           ) : (
             <>
               <QuestionCard
                 currentIndex={practice.session.currentIndex}
+                focusTags={
+                  preferences.mode === "weakness-focused" ? preferences.targetTags : undefined
+                }
                 question={practice.session.currentQuestion}
                 totalQuestions={practice.session.preferences.questionLimit}
               />
