@@ -5,6 +5,15 @@
   font-synthesis: none;
   line-height: 1.5;
   text-rendering: optimizeLegibility;
+
+  --color-primary: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-secondary: #f59e0b;
+  --color-accent: #ec4899;
+  --color-background: #eff6ff;
+  --color-foreground: #0f172a;
+  --color-muted: #f1f5fd;
+  --color-border: #e4ecfc;
 }
 
 * {

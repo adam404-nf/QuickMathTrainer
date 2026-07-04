@@ -11,8 +11,8 @@ interface SessionSummaryPanelProps {
   attempts: Attempt[];
   difficulty: Difficulty;
   onRestart: () => void;
-  onFocusWeakness?: (tags: string[]) => void;
-  onFocusAllWeaknesses?: () => void;
+  onGoHome: () => void;
+  onReviewWeaknesses?: (tags?: string[]) => void;
 }
 
 function getStatusLabel(status: SkillMetric["status"]): string {
@@ -29,10 +29,10 @@ function getStatusLabel(status: SkillMetric["status"]): string {
 
 function WeaknessMetricItem({
   metric,
-  onFocusWeakness,
+  onReviewWeaknesses,
 }: {
   metric: SkillMetric;
-  onFocusWeakness?: (tags: string[]) => void;
+  onReviewWeaknesses?: (tags: string[]) => void;
 }) {
   return (
     <li className={styles.weaknessItem}>
@@ -45,9 +45,13 @@ function WeaknessMetricItem({
         {metric.questionCount} 題
       </p>
       {metric.diagnosis ? <p className={styles.weaknessDiagnosis}>{metric.diagnosis}</p> : null}
-      {onFocusWeakness && metric.scope === "tag" ? (
-        <Button className={styles.focusButton} onClick={() => onFocusWeakness([metric.key])} variant="secondary">
-          專攻此項
+      {onReviewWeaknesses && metric.scope === "tag" ? (
+        <Button
+          className={styles.focusButton}
+          onClick={() => onReviewWeaknesses([metric.key])}
+          variant="secondary"
+        >
+          前往專攻此項
         </Button>
       ) : null}
     </li>
@@ -58,8 +62,8 @@ export function SessionSummaryPanel({
   attempts,
   difficulty,
   onRestart,
-  onFocusWeakness,
-  onFocusAllWeaknesses,
+  onGoHome,
+  onReviewWeaknesses,
 }: SessionSummaryPanelProps) {
   const summary = createSessionSummary(attempts, difficulty);
   const { weakness } = summary;
@@ -108,19 +112,22 @@ export function SessionSummaryPanel({
               <div className={styles.weaknessGroup}>
                 <h4>細項能力</h4>
                 <ul>
-                  {weakness.weakTags.slice(0, 3).map((metric) => (
+                  {weakness.weakTags.map((metric) => (
                     <WeaknessMetricItem
                       key={`tag-${metric.key}`}
                       metric={metric}
-                      onFocusWeakness={onFocusWeakness}
+                      onReviewWeaknesses={onReviewWeaknesses}
                     />
                   ))}
                 </ul>
               </div>
             ) : null}
-            {onFocusAllWeaknesses && weakness.weakTags.length > 0 ? (
-              <Button onClick={onFocusAllWeaknesses} variant="secondary">
-                專攻全部弱項
+            {onReviewWeaknesses && weakness.weakTags.length > 0 ? (
+              <Button
+                onClick={() => onReviewWeaknesses(weakness.weakTags.map((metric) => metric.key))}
+                variant="secondary"
+              >
+                前往弱項分析（多選專攻）
               </Button>
             ) : null}
           </>
@@ -145,7 +152,12 @@ export function SessionSummaryPanel({
         )}
       </section>
 
-      <Button onClick={onRestart}>再練一輪</Button>
+      <div className={styles.summaryActions}>
+        <Button onClick={onRestart}>再練一輪</Button>
+        <Button onClick={onGoHome} variant="secondary">
+          返回首頁
+        </Button>
+      </div>
     </Card>
   );
 }

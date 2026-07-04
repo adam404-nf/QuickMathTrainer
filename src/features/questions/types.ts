@@ -32,6 +32,7 @@ export interface GenerateQuestionInput {
   context: QuestionContext;
   targetTags?: string[];
   targetTypes?: QuestionType[];
+  selectedQuestionTypes?: QuestionType[];
 }
 
 export type QuestionGenerator = (

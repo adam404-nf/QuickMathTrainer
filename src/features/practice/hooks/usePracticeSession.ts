@@ -1,19 +1,23 @@
 import { useMemo, useState } from "react";
-import { advanceSession, createPracticeSession, restartPracticeSession, submitAnswer } from "../session";
+import { advanceSession, restartPracticeSession, submitAnswer } from "../session";
 import type { PracticeSession } from "../types";
 import type { Attempt } from "../../results/types";
 import type { PracticePreferences } from "../../settings/types";
 
 export function usePracticeSession(preferences: PracticePreferences) {
-  const [session, setSession] = useState<PracticeSession>(() => createPracticeSession(preferences));
+  const [session, setSession] = useState<PracticeSession | null>(null);
   const [latestAttempt, setLatestAttempt] = useState<Attempt | undefined>();
 
   const summaryAttempts = useMemo(() => {
+    if (!session) {
+      return [];
+    }
+
     return latestAttempt ? [...session.attempts, latestAttempt] : session.attempts;
-  }, [latestAttempt, session.attempts]);
+  }, [latestAttempt, session]);
 
   function submit(userAnswer: string): void {
-    if (latestAttempt || session.status === "finished") {
+    if (!session || latestAttempt || session.status === "finished") {
       return;
     }
 
@@ -22,17 +26,27 @@ export function usePracticeSession(preferences: PracticePreferences) {
   }
 
   function next(): void {
-    if (!latestAttempt) {
+    if (!session || !latestAttempt) {
       return;
     }
 
-    setSession((currentSession) => advanceSession(currentSession, latestAttempt));
+    setSession((currentSession) => {
+      if (!currentSession) {
+        return currentSession;
+      }
+
+      return advanceSession(currentSession, latestAttempt);
+    });
     setLatestAttempt(undefined);
   }
 
   function restart(nextPreferences = preferences): void {
     setSession(restartPracticeSession(nextPreferences));
     setLatestAttempt(undefined);
+  }
+
+  function start(nextPreferences = preferences): void {
+    restart(nextPreferences);
   }
 
   return {
@@ -42,5 +56,6 @@ export function usePracticeSession(preferences: PracticePreferences) {
     submit,
     next,
     restart,
+    start,
   };
 }

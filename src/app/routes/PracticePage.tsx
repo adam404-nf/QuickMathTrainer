@@ -1,24 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { AppScreen } from "../types";
+import {
+  getQuizPreferences,
+  getQuickPracticePreferences,
+  HomePage,
+} from "../components/HomePage";
 import { AnswerForm } from "../../features/practice/components/AnswerForm";
 import { FeedbackPanel } from "../../features/practice/components/FeedbackPanel";
 import { QuestionCard } from "../../features/practice/components/QuestionCard";
 import { SessionSummaryPanel } from "../../features/practice/components/SessionSummaryPanel";
+import {
+  buildWeaknessPrefill,
+  WeaknessSelectionPanel,
+} from "../../features/practice/components/WeaknessSelectionPanel";
 import { usePracticeSession } from "../../features/practice/hooks/usePracticeSession";
+import { getQuestionTypesForTags } from "../../features/questions/templates";
+import type { QuestionType } from "../../features/questions/types";
 import { createHistoryEntry, prependHistoryEntry } from "../../features/results/history";
 import type { PracticeHistoryEntry } from "../../features/results/types";
-import { deriveWeaknessTargets } from "../../features/results/weaknessProfile";
-import { getWeaknessTargetTags } from "../../features/results/weakness";
-import { createWeaknessBreakdown } from "../../features/results/weakness";
+import { deriveWeaknessBreakdownFromHistory } from "../../features/results/weaknessProfile";
 import {
   defaultPracticePreferences,
   normalizePracticePreferences,
 } from "../../features/settings/preferences";
 import {
-  SESSION_LENGTH_LABELS,
   getQuestionLimitForPreset,
   inferPresetFromQuestionLimit,
 } from "../../features/settings/sessionLength";
 import type { PracticePreferences, SessionLengthPreset } from "../../features/settings/types";
+import { Button } from "../../shared/components/Button";
 import { Card } from "../../shared/components/Card";
 import { createLocalStorageAdapter } from "../../shared/storage/localStorageAdapter";
 import { formatMilliseconds, formatPercent } from "../../shared/utils/format";
@@ -43,16 +53,43 @@ function loadPreferences(): PracticePreferences {
   });
 }
 
+function getPracticeModeLabel(mode: PracticePreferences["mode"]): string {
+  if (mode === "mixed") {
+    return "混合測驗";
+  }
+
+  if (mode === "weakness-focused") {
+    return "弱項專攻";
+  }
+
+  if (mode === "arithmetic") {
+    return "整數四則";
+  }
+
+  if (mode === "fractions") {
+    return "分數小數";
+  }
+
+  return "冪次根號";
+}
+
 export function PracticePage() {
+  const [screen, setScreen] = useState<AppScreen>("home");
   const [preferences, setPreferences] = useState<PracticePreferences>(() => loadPreferences());
   const [history, setHistory] = useState<PracticeHistoryEntry[]>(() => historyStorage.load() ?? []);
   const [savedSessionIds, setSavedSessionIds] = useState<Set<string>>(() => new Set());
-  const [modeNotice, setModeNotice] = useState<string | undefined>();
+  const [quickPracticeType, setQuickPracticeType] = useState<QuestionType>("arithmetic");
+  const [weaknessPrefillTags, setWeaknessPrefillTags] = useState<string[] | undefined>();
   const [answer, setAnswer] = useState("");
   const practice = usePracticeSession(preferences);
 
+  const weaknessData = useMemo(
+    () => deriveWeaknessBreakdownFromHistory(history, preferences.difficulty),
+    [history, preferences.difficulty],
+  );
+
   useEffect(() => {
-    if (practice.session.status !== "finished" || savedSessionIds.has(practice.session.id)) {
+    if (!practice.session || practice.session.status !== "finished" || savedSessionIds.has(practice.session.id)) {
       return;
     }
 
@@ -70,74 +107,58 @@ export function PracticePage() {
       historyStorage.save(nextHistory);
       return nextHistory;
     });
-    setSavedSessionIds((currentIds) => new Set(currentIds).add(practice.session.id));
+    setSavedSessionIds((currentIds) => new Set(currentIds).add(practice.session!.id));
   }, [practice.session, savedSessionIds]);
 
-  function applyPreferences(nextPreferences: PracticePreferences): void {
+  function savePreferences(nextPreferences: PracticePreferences): PracticePreferences {
     const normalized = normalizePracticePreferences(nextPreferences);
     setPreferences(normalized);
     preferencesStorage.save(normalized);
+    return normalized;
+  }
+
+  function updateHomePreferences(nextPreferences: PracticePreferences): void {
+    savePreferences(nextPreferences);
+  }
+
+  function enterPractice(nextPreferences: PracticePreferences): void {
+    const normalized = savePreferences(nextPreferences);
     setAnswer("");
-    practice.restart(normalized);
+    practice.start(normalized);
+    setScreen("practice");
   }
 
-  function updatePreferences(nextPreferences: PracticePreferences): void {
-    setModeNotice(undefined);
-    applyPreferences(nextPreferences);
+  function handleStartQuickPractice(): void {
+    enterPractice(getQuickPracticePreferences(preferences, quickPracticeType));
   }
 
-  function startWeaknessFocusedMode(tags: string[]): void {
-    const targets = deriveWeaknessTargets(history, preferences.difficulty);
+  function handleStartQuiz(): void {
+    enterPractice(getQuizPreferences(preferences));
+  }
 
-    if (!targets.isReady && tags.length === 0) {
-      setModeNotice(targets.message);
-      return;
-    }
+  function handleOpenWeakness(prefillTags?: string[]): void {
+    setWeaknessPrefillTags(prefillTags);
+    setScreen("weakness");
+  }
 
-    const targetTags = tags.length > 0 ? tags : targets.tags;
+  function handleStartWeaknessPractice(selectedTags: string[]): void {
+    const targetTypes = getQuestionTypesForTags(selectedTags);
 
-    applyPreferences({
+    enterPractice({
       ...preferences,
       mode: "weakness-focused",
-      targetTags,
-      targetTypes: targets.types,
+      targetTags: selectedTags,
+      targetTypes: targetTypes.length > 0 ? targetTypes : undefined,
+      questionLimit: getQuestionLimitForPreset(preferences.sessionLength),
     });
   }
 
-  function handleModeChange(mode: PracticePreferences["mode"]): void {
-    if (mode === "weakness-focused") {
-      const targets = deriveWeaknessTargets(history, preferences.difficulty);
-
-      if (!targets.isReady) {
-        setModeNotice(targets.message);
-        updatePreferences({
-          ...preferences,
-          mode: "mixed",
-          targetTags: undefined,
-          targetTypes: undefined,
-        });
-        return;
-      }
-
-      updatePreferences({
-        ...preferences,
-        mode: "weakness-focused",
-        targetTags: targets.tags,
-        targetTypes: targets.types,
-      });
-      return;
-    }
-
-    updatePreferences({
-      ...preferences,
-      mode,
-      targetTags: undefined,
-      targetTypes: undefined,
-    });
+  function handleDifficultyChange(difficulty: PracticePreferences["difficulty"]): void {
+    updateHomePreferences({ ...preferences, difficulty });
   }
 
   function handleSessionLengthChange(sessionLength: SessionLengthPreset): void {
-    updatePreferences({
+    updateHomePreferences({
       ...preferences,
       sessionLength,
       questionLimit: getQuestionLimitForPreset(sessionLength),
@@ -153,133 +174,169 @@ export function PracticePage() {
     setAnswer("");
   }
 
-  function handleFocusAllWeaknesses(): void {
-    const breakdown = createWeaknessBreakdown(practice.session.attempts, preferences.difficulty);
-    startWeaknessFocusedMode(getWeaknessTargetTags(breakdown, 3));
+  function handleRestartPractice(): void {
+    if (!practice.session) {
+      return;
+    }
+
+    setAnswer("");
+    practice.restart(practice.session.preferences);
+  }
+
+  function handleGoHome(): void {
+    setAnswer("");
+    setScreen("home");
+  }
+
+  function handleReviewWeaknesses(prefillTags?: string[]): void {
+    handleOpenWeakness(prefillTags);
   }
 
   const latestHistory = history[0];
+  const session = practice.session;
   const isLastQuestion =
+    session &&
     practice.latestAttempt !== undefined &&
-    practice.session.attempts.length + 1 >= practice.session.preferences.questionLimit;
+    session.attempts.length + 1 >= session.preferences.questionLimit;
+
+  const allWeakTagKeys = weaknessData.breakdown.weakTags.map((metric) => metric.key);
 
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
-        <div>
-          <p className={styles.eyebrow}>QuickMathOwo</p>
-          <h1>Flashcard 式數學速度訓練</h1>
-          <p>打開就開始練，專注提升計算速度、準確率與數字敏感度。</p>
-        </div>
-        <Card className={styles.settingsCard}>
-          <label>
-            模式
-            <select
-              onChange={(event) => handleModeChange(event.target.value as PracticePreferences["mode"])}
-              value={preferences.mode}
-            >
-              <option value="mixed">混合練習</option>
-              <option value="arithmetic">整數四則</option>
-              <option value="powers">冪次根號</option>
-              <option value="fractions">分數小數</option>
-              <option value="weakness-focused">弱項專攻</option>
-            </select>
-          </label>
-          <label>
-            難度
-            <select
-              onChange={(event) =>
-                updatePreferences({
-                  ...preferences,
-                  difficulty: event.target.value as PracticePreferences["difficulty"],
-                })
-              }
-              value={preferences.difficulty}
-            >
-              <option value="easy">easy</option>
-              <option value="medium">medium</option>
-              <option value="hard">hard</option>
-            </select>
-          </label>
-          <label>
-            題量
-            <select
-              onChange={(event) => handleSessionLengthChange(event.target.value as SessionLengthPreset)}
-              value={preferences.sessionLength}
-            >
-              {(Object.keys(SESSION_LENGTH_LABELS) as SessionLengthPreset[]).map((preset) => (
-                <option key={preset} value={preset}>
-                  {SESSION_LENGTH_LABELS[preset]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {modeNotice ? <p className={styles.modeNotice}>{modeNotice}</p> : null}
-        </Card>
-      </section>
+      {screen === "home" ? (
+        <HomePage
+          latestAccuracy={latestHistory?.summary.accuracy}
+          onDifficultyChange={handleDifficultyChange}
+          onOpenWeakness={() => handleOpenWeakness()}
+          onQuickPracticeTypeChange={setQuickPracticeType}
+          onSessionLengthChange={handleSessionLengthChange}
+          onStartQuickPractice={handleStartQuickPractice}
+          onStartQuiz={handleStartQuiz}
+          preferences={preferences}
+          quickPracticeType={quickPracticeType}
+        />
+      ) : null}
 
-      <section className={styles.practiceLayout}>
-        <div className={styles.practiceColumn}>
-          {practice.session.status === "finished" ? (
-            <SessionSummaryPanel
-              attempts={practice.session.attempts}
-              difficulty={preferences.difficulty}
-              onFocusAllWeaknesses={handleFocusAllWeaknesses}
-              onFocusWeakness={(tags) => startWeaknessFocusedMode(tags)}
-              onRestart={() => practice.restart()}
-            />
-          ) : (
-            <>
-              <QuestionCard
-                currentIndex={practice.session.currentIndex}
-                focusTags={
-                  preferences.mode === "weakness-focused" ? preferences.targetTags : undefined
-                }
-                question={practice.session.currentQuestion}
-                totalQuestions={practice.session.preferences.questionLimit}
-              />
-              <AnswerForm
-                answer={answer}
-                disabled={practice.latestAttempt !== undefined}
-                onAnswerChange={setAnswer}
-                onSubmit={handleSubmit}
-                question={practice.session.currentQuestion}
-              />
-              {practice.latestAttempt ? (
-                <FeedbackPanel
-                  attempt={practice.latestAttempt}
-                  isLastQuestion={isLastQuestion}
-                  onNext={handleNext}
+      {screen === "weakness" ? (
+        <WeaknessSelectionPanel
+          isReady={weaknessData.isReady}
+          message={weaknessData.message}
+          onBack={handleGoHome}
+          onStart={handleStartWeaknessPractice}
+          preselectedTags={buildWeaknessPrefill(allWeakTagKeys, weaknessPrefillTags)}
+          weakTags={weaknessData.breakdown.weakTags}
+          weakTypes={weaknessData.breakdown.weakTypes}
+        />
+      ) : null}
+
+      {screen === "practice" && session ? (
+        <section className={styles.practiceShell}>
+          <header className={styles.practiceHeader}>
+            <div>
+              <p className={styles.eyebrow}>{getPracticeModeLabel(session.preferences.mode)}</p>
+              <h1>專注作答</h1>
+            </div>
+            <Button onClick={handleGoHome} variant="ghost">
+              返回首頁
+            </Button>
+          </header>
+
+          <div className={styles.practiceLayout}>
+            <div className={styles.practiceColumn}>
+              {session.status === "finished" ? (
+                <SessionSummaryPanel
+                  attempts={session.attempts}
+                  difficulty={session.preferences.difficulty}
+                  onGoHome={handleGoHome}
+                  onRestart={handleRestartPractice}
+                  onReviewWeaknesses={handleReviewWeaknesses}
                 />
-              ) : null}
-            </>
-          )}
-        </div>
+              ) : (
+                <>
+                  <QuestionCard
+                    currentIndex={session.currentIndex}
+                    focusTags={
+                      session.preferences.mode === "weakness-focused"
+                        ? session.preferences.targetTags
+                        : undefined
+                    }
+                    modeLabel={getPracticeModeLabel(session.preferences.mode)}
+                    question={session.currentQuestion}
+                    totalQuestions={session.preferences.questionLimit}
+                  />
+                  <AnswerForm
+                    answer={answer}
+                    disabled={practice.latestAttempt !== undefined}
+                    onAnswerChange={setAnswer}
+                    onSubmit={handleSubmit}
+                    question={session.currentQuestion}
+                  />
+                  {practice.latestAttempt ? (
+                    <FeedbackPanel
+                      attempt={practice.latestAttempt}
+                      isLastQuestion={Boolean(isLastQuestion)}
+                      onNext={handleNext}
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
 
-        <aside className={styles.sidePanel}>
-          <Card>
-            <h2>最近紀錄</h2>
-            {latestHistory ? (
-              <dl className={styles.historyStats}>
-                <div>
-                  <dt>正確率</dt>
-                  <dd>{formatPercent(latestHistory.summary.accuracy)}</dd>
-                </div>
-                <div>
-                  <dt>平均用時</dt>
-                  <dd>{formatMilliseconds(latestHistory.summary.averageTimeMs)}</dd>
-                </div>
-                <div>
-                  <dt>題數</dt>
-                  <dd>{latestHistory.summary.totalQuestions}</dd>
-                </div>
-              </dl>
-            ) : (
-              <p>完成第一輪後會顯示最近練習紀錄。</p>
-            )}
-          </Card>
-        </aside>
-      </section>
+            <aside className={styles.sidePanel}>
+              <Card>
+                <h2>本輪進度</h2>
+                {session.status === "finished" ? (
+                  <dl className={styles.historyStats}>
+                    <div>
+                      <dt>狀態</dt>
+                      <dd>已完成</dd>
+                    </div>
+                    <div>
+                      <dt>題數</dt>
+                      <dd>{session.attempts.length}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <dl className={styles.historyStats}>
+                    <div>
+                      <dt>目前題號</dt>
+                      <dd>
+                        {session.currentIndex + 1} / {session.preferences.questionLimit}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>已答</dt>
+                      <dd>{session.attempts.length}</dd>
+                    </div>
+                  </dl>
+                )}
+              </Card>
+
+              <Card>
+                <h2>最近紀錄</h2>
+                {latestHistory ? (
+                  <dl className={styles.historyStats}>
+                    <div>
+                      <dt>正確率</dt>
+                      <dd>{formatPercent(latestHistory.summary.accuracy)}</dd>
+                    </div>
+                    <div>
+                      <dt>平均用時</dt>
+                      <dd>{formatMilliseconds(latestHistory.summary.averageTimeMs)}</dd>
+                    </div>
+                    <div>
+                      <dt>題數</dt>
+                      <dd>{latestHistory.summary.totalQuestions}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className={styles.sideHint}>完成第一輪後會顯示最近練習紀錄。</p>
+                )}
+              </Card>
+            </aside>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

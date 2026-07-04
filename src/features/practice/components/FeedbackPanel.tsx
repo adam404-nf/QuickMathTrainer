@@ -11,12 +11,20 @@ interface FeedbackPanelProps {
 
 export function FeedbackPanel({ attempt, isLastQuestion, onNext }: FeedbackPanelProps) {
   return (
-    <section className={attempt.isCorrect ? styles.correctFeedback : styles.wrongFeedback}>
-      <div>
-        <strong>{attempt.isCorrect ? "答對了" : "答錯了"}</strong>
-        <p>
-          正確答案：{attempt.correctAnswer}，用時 {formatMilliseconds(attempt.timeMs)}
-        </p>
+    <section
+      aria-live="polite"
+      className={attempt.isCorrect ? styles.correctFeedback : styles.wrongFeedback}
+    >
+      <div className={styles.feedbackBody}>
+        <span aria-hidden="true" className={styles.feedbackIcon}>
+          {attempt.isCorrect ? "✓" : "×"}
+        </span>
+        <div>
+          <strong>{attempt.isCorrect ? "答對了" : "答錯了"}</strong>
+          <p>
+            正確答案：{attempt.correctAnswer}，用時 {formatMilliseconds(attempt.timeMs)}
+          </p>
+        </div>
       </div>
       <Button onClick={onNext}>{isLastQuestion ? "查看統計" : "下一題"}</Button>
     </section>

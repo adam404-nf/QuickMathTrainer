@@ -6,61 +6,32 @@
   padding: clamp(1rem, 4vw, 3rem);
 }
 
-.hero {
-  align-items: end;
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
-}
-
-.hero h1 {
-  color: #0f172a;
-  font-size: clamp(2.2rem, 6vw, 4.8rem);
-  letter-spacing: -0.07em;
-  line-height: 0.95;
-  margin: 0;
-}
-
-.hero p {
-  color: #475569;
-  font-size: 1.08rem;
-  max-width: 42rem;
-}
-
 .eyebrow {
   color: #2563eb;
   font-size: 0.85rem;
   font-weight: 800;
   letter-spacing: 0.16em;
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.35rem;
   text-transform: uppercase;
 }
 
-.settingsCard {
+.practiceShell {
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
-.settingsCard label {
-  color: #475569;
-  display: grid;
-  font-size: 0.9rem;
-  font-weight: 700;
-  gap: 0.35rem;
+.practiceHeader {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
 }
 
-.settingsCard select {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.9rem;
+.practiceHeader h1 {
   color: #0f172a;
-  font: inherit;
-  padding: 0.7rem 0.85rem;
-}
-
-.modeNotice {
-  color: #64748b;
-  font-size: 0.9rem;
+  font-family: "Baloo 2", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
   margin: 0;
 }
 
@@ -82,6 +53,8 @@
 }
 
 .sidePanel h2 {
+  color: #0f172a;
+  font-size: 1.05rem;
   margin-top: 0;
 }
 
@@ -106,9 +79,19 @@
   margin: 0;
 }
 
+.sideHint {
+  color: #64748b;
+  margin: 0;
+}
+
 @media (max-width: 900px) {
-  .hero,
   .practiceLayout {
     grid-template-columns: 1fr;
+  }
+
+  .practiceHeader {
+    align-items: start;
+    flex-direction: column;
+    gap: 0.75rem;
   }
 }

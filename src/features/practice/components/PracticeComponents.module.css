@@ -1,18 +1,59 @@
 .questionCard {
-  min-height: 15rem;
+  display: grid;
+  gap: 1rem;
+  min-height: 16rem;
 }
 
 .questionMeta {
-  color: #64748b;
+  align-items: center;
   display: flex;
-  font-size: 0.9rem;
   justify-content: space-between;
-  margin-bottom: 2rem;
+}
+
+.questionCounter {
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.difficultyBadge,
+.modeBadge {
+  background: #eff6ff;
+  border-radius: 999px;
+  color: #1d4ed8;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.75rem;
+  text-transform: uppercase;
+}
+
+.modeBadge {
+  justify-self: start;
+  margin: 0;
+}
+
+.progressTrack {
+  background: #e4ecfc;
+  border-radius: 999px;
+  height: 0.55rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.progressFill {
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 220ms ease-out;
 }
 
 .prompt {
   color: #0f172a;
-  font-size: clamp(2.8rem, 10vw, 5rem);
+  font-family: "Baloo 2", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2.6rem, 10vw, 4.8rem);
+  font-variant-numeric: tabular-nums;
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 1;
@@ -22,9 +63,13 @@
 
 .strategy {
   color: #64748b;
-  margin: 2rem auto 0;
+  margin: 0 auto;
   max-width: 34rem;
   text-align: center;
+}
+
+.answerCard {
+  padding-top: 1.25rem;
 }
 
 .answerForm {
@@ -46,11 +91,12 @@
 
 .answerInput {
   background: #ffffff;
-  border: 1px solid #cbd5e1;
+  border: 2px solid #e4ecfc;
   border-radius: 999px;
   color: #0f172a;
   font: inherit;
   font-size: 1.2rem;
+  min-height: 3rem;
   padding: 0.85rem 1rem;
 }
 
@@ -66,19 +112,35 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.option {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+.option,
+.optionActive {
   border-radius: 1rem;
-  color: #0f172a;
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+  min-height: 3rem;
   padding: 1rem;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
 }
 
-.option:hover:not(:disabled) {
-  border-color: #2563eb;
+.option {
+  background: #ffffff;
+  border: 2px solid #e4ecfc;
+  color: #0f172a;
+}
+
+.optionActive {
+  background: #dbeafe;
+  border: 2px solid #2563eb;
+  color: #1d4ed8;
+}
+
+.option:hover:not(:disabled),
+.optionActive:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .correctFeedback,
@@ -88,17 +150,37 @@
   display: flex;
   gap: 1rem;
   justify-content: space-between;
-  padding: 1rem;
+  padding: 1rem 1.1rem;
 }
 
 .correctFeedback {
   background: #dcfce7;
+  border: 2px solid #86efac;
   color: #166534;
 }
 
 .wrongFeedback {
   background: #fee2e2;
+  border: 2px solid #fca5a5;
   color: #991b1b;
+}
+
+.feedbackBody {
+  align-items: center;
+  display: flex;
+  gap: 0.85rem;
+}
+
+.feedbackIcon {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 1.1rem;
+  font-weight: 800;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
 }
 
 .correctFeedback p,
@@ -122,6 +204,8 @@
 
 .summaryCard h2,
 .mistakes h3 {
+  color: #0f172a;
+  font-family: "Baloo 2", Inter, ui-sans-serif, system-ui, sans-serif;
   margin: 0;
 }
 
@@ -133,6 +217,7 @@
 
 .summaryGrid div {
   background: #f8fafc;
+  border: 2px solid #e4ecfc;
   border-radius: 1rem;
   padding: 1rem;
 }
@@ -141,6 +226,7 @@
   color: #0f172a;
   display: block;
   font-size: 1.8rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .summaryGrid span {
@@ -189,7 +275,7 @@
 
 .weaknessItem {
   background: #fff7ed;
-  border: 1px solid #fed7aa;
+  border: 2px solid #fed7aa;
   border-radius: 0.9rem;
   display: grid;
   gap: 0.5rem;
@@ -228,15 +314,15 @@
   color: #1d4ed8;
   font-size: 0.9rem;
   font-weight: 700;
-  margin: 0 0 1rem;
+  margin: 0;
   padding: 0.45rem 0.85rem;
   text-align: center;
 }
 
-.modeNotice {
-  color: #64748b;
-  font-size: 0.9rem;
-  margin: 0;
+.summaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 @media (max-width: 640px) {
@@ -250,5 +336,13 @@
   .wrongFeedback {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill,
+  .option,
+  .optionActive {
+    transition: none;
   }
 }

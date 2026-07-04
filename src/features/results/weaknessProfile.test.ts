@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Attempt, PracticeHistoryEntry } from "./types";
-import { deriveWeaknessTargets } from "./weaknessProfile";
+import { deriveWeaknessBreakdownFromHistory, deriveWeaknessTargets } from "./weaknessProfile";
 
 function makeAttempt(id: string, tags: string[], isCorrect: boolean, timeMs: number): Attempt {
   return {
@@ -79,5 +79,29 @@ describe("deriveWeaknessTargets", () => {
     expect(targets.isReady).toBe(true);
     expect(targets.tags).toContain("multiplication");
     expect(targets.tags.length).toBeLessThanOrEqual(3);
+  });
+});
+
+describe("deriveWeaknessBreakdownFromHistory", () => {
+  it("returns all weak tags instead of truncating to three", () => {
+    const attempts = [
+      ...Array.from({ length: 4 }, (_, index) =>
+        makeAttempt(`mul-wrong-${index}`, ["multiplication"], false, 7000),
+      ),
+      ...Array.from({ length: 4 }, (_, index) =>
+        makeAttempt(`div-wrong-${index}`, ["division"], false, 7000),
+      ),
+      ...Array.from({ length: 4 }, (_, index) =>
+        makeAttempt(`dec-wrong-${index}`, ["decimals"], false, 7000),
+      ),
+      ...Array.from({ length: 4 }, (_, index) =>
+        makeAttempt(`add-${index}`, ["addition"], true, 1000),
+      ),
+    ];
+
+    const result = deriveWeaknessBreakdownFromHistory([makeHistoryEntry(attempts)], "easy");
+
+    expect(result.isReady).toBe(true);
+    expect(result.breakdown.weakTags.length).toBeGreaterThanOrEqual(3);
   });
 });

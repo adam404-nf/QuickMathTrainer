@@ -109,4 +109,20 @@ describe("question registry", () => {
 
     expect(foundMultiStep).toBe(true);
   });
+
+  it("limits mixed mode to selected question types when provided", () => {
+    for (let index = 0; index < 20; index += 1) {
+      const question = generateQuestion({
+        mode: "mixed",
+        difficulty: "easy",
+        selectedQuestionTypes: ["arithmetic", "fractions"],
+        context: {
+          recentQuestionIds: [],
+          seenQuestionIds: new Set(),
+        },
+      });
+
+      expect(["arithmetic", "fractions"]).toContain(question.type);
+    }
+  });
 });

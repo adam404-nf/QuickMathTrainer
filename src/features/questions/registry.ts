@@ -50,6 +50,12 @@ function getEligibleTypes(input: GenerateQuestionInput): QuestionType[] {
   }
 
   if (input.mode === "mixed") {
+    const selected = input.selectedQuestionTypes?.filter((type) => availableQuestionTypes.includes(type));
+
+    if (selected && selected.length > 0) {
+      return selected;
+    }
+
     return availableQuestionTypes;
   }
 

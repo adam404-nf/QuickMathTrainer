@@ -29,6 +29,7 @@ function buildGenerateInput(
     context,
     targetTags: preferences.mode === "weakness-focused" ? preferences.targetTags : undefined,
     targetTypes: preferences.mode === "weakness-focused" ? preferences.targetTypes : undefined,
+    selectedQuestionTypes: preferences.mode === "mixed" ? preferences.selectedQuestionTypes : undefined,
   };
 }
 
