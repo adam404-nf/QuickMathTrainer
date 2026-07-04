@@ -44,6 +44,10 @@ coverage/
 # Cursor local state
 .cursor/
 
+# Agent skills (installed via `npx skills add`; versions tracked in skills-lock.json)
+.agents/skills/
+**/__pycache__/
+
 # OS files
 .DS_Store
 Thumbs.db
