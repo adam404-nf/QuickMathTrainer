@@ -73,7 +73,7 @@ quickmathowo/
 | `10-mental-cost.md` | **心算成本（Mental Cost）完整規格**：公式、20 種計算模板、32 種題目模板範例 |
 | `ai-rules.md` | 給 AI 協作用的規則 |
 | `decision-assistant.md` | 決策輔助筆記 |
-| `09-專案資料夾導覽.md` | 就是這份文件 |
+| `09-project-folder-guide.md` | 就是這份文件 |
 
 **比喻**：這是健身房的創業計畫書、裝潢圖、SOP 手冊，開店前寫好，之後改功能時可以回頭對照。
 
