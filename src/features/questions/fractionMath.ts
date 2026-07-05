@@ -229,6 +229,19 @@ function fractionBinaryTemplate(
   return { kind: "fraction-divide", left, right };
 }
 
+function fractionFromExprNode(node: ExprNode): Fraction {
+  if (node.kind === "fraction") {
+    return node.value;
+  }
+  if (node.kind === "integer") {
+    return { num: node.value, den: 1 };
+  }
+  const evaluated = evaluateExpr(node);
+  return typeof evaluated.value === "number"
+    ? simplifyFraction({ num: evaluated.value, den: 1 })
+    : simplifyFraction(evaluated.value);
+}
+
 export function calculationTemplatesForExpr(node: ExprNode): CalculationTemplateSpec[] {
   if (node.kind === "fraction" || node.kind === "integer") {
     return [];
@@ -238,14 +251,8 @@ export function calculationTemplatesForExpr(node: ExprNode): CalculationTemplate
     return [...calculationTemplatesForExpr(node.inner), { kind: "absolute-value" }];
   }
 
-  const leftFraction =
-    node.left.kind === "fraction"
-      ? node.left.value
-      : { num: node.left.value, den: 1 };
-  const rightFraction =
-    node.right.kind === "fraction"
-      ? node.right.value
-      : { num: node.right.value, den: 1 };
+  const leftFraction = fractionFromExprNode(node.left);
+  const rightFraction = fractionFromExprNode(node.right);
 
   return [
     ...calculationTemplatesForExpr(node.left),
