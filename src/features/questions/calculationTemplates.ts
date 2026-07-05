@@ -46,61 +46,88 @@ export type CalculationTemplateSpec =
   | { kind: "decimal-subtract"; whole: number; fraction: number }
   | { kind: "decimal-multiply"; decimal: number; integer: number };
 
-function hasAdditionCarry(a: number, b: number): boolean {
-  return (a % 10) + (b % 10) >= 10;
+function countAdditionCarries(a: number, b: number): number {
+  let carries = 0;
+  let carry = 0;
+  let remainingA = Math.abs(a);
+  let remainingB = Math.abs(b);
+
+  while (remainingA > 0 || remainingB > 0 || carry > 0) {
+    const digitA = remainingA % 10;
+    const digitB = remainingB % 10;
+    const sum = digitA + digitB + carry;
+    if (sum >= 10) {
+      carries += 1;
+    }
+    carry = sum >= 10 ? 1 : 0;
+    remainingA = Math.floor(remainingA / 10);
+    remainingB = Math.floor(remainingB / 10);
+  }
+
+  return carries;
 }
 
-function hasSubtractionBorrow(a: number, b: number): boolean {
-  return (a % 10) < (b % 10);
+function countSubtractionBorrows(a: number, b: number): number {
+  let borrows = 0;
+  let borrow = 0;
+  let remainingA = Math.abs(a);
+  let remainingB = Math.abs(b);
+
+  while (remainingA > 0 || remainingB > 0) {
+    const digitA = (remainingA % 10) - borrow;
+    const digitB = remainingB % 10;
+    if (digitA < digitB) {
+      borrows += 1;
+      borrow = 1;
+    } else {
+      borrow = 0;
+    }
+    remainingA = Math.floor(remainingA / 10);
+    remainingB = Math.floor(remainingB / 10);
+  }
+
+  return borrows;
 }
 
 export function integerAddBaseCost(a: number, b: number): number {
-  const sum = a + b;
-  if (a < 40 && b < 40 && !hasAdditionCarry(a, b) && sum < 100) {
-    return 1;
-  }
-  if (sum < 150) {
-    return 2;
-  }
-  return 3;
+  return countAdditionCarries(a, b) >= 2 ? 2 : 1;
 }
 
 export function integerSubtractBaseCost(a: number, b: number): number {
-  if (a < 40 && b < 20 && !hasSubtractionBorrow(a, b)) {
+  return countSubtractionBorrows(a, b) >= 2 ? 2 : 1;
+}
+
+function pairOperandBaseCost(absA: number, absB: number): number {
+  const max = Math.max(absA, absB);
+  const min = Math.min(absA, absB);
+  const aIsOnes = absA <= 9;
+  const bIsOnes = absB <= 9;
+  const aIsTwoDigit = absA >= 10 && absA <= 99;
+  const bIsTwoDigit = absB >= 10 && absB <= 99;
+
+  if (aIsOnes && bIsOnes) {
     return 1;
   }
-  if (a < 100) {
+  if ((aIsOnes && bIsTwoDigit) || (bIsOnes && aIsTwoDigit)) {
     return 2;
   }
-  return 3;
+  if (aIsTwoDigit && bIsTwoDigit) {
+    return min < 20 && max < 30 ? 3 : 4;
+  }
+  return 4;
 }
 
 export function integerMultiplyBaseCost(a: number, b: number): number {
-  const max = Math.max(Math.abs(a), Math.abs(b));
-  const min = Math.min(Math.abs(a), Math.abs(b));
-  if (max <= 15 && min <= 9) {
-    return 1;
-  }
-  if (max <= 19 && min <= 9) {
-    return 2;
-  }
-  if (max <= 49 && min <= 19) {
-    return 3;
-  }
-  return 4;
+  return pairOperandBaseCost(Math.abs(a), Math.abs(b));
 }
 
 export function integerDivideBaseCost(dividend: number, divisor: number): number {
-  if (dividend <= 81 && divisor <= 9) {
-    return 1;
+  if (divisor === 0) {
+    return 4;
   }
-  if (dividend <= 144 && divisor <= 12) {
-    return 2;
-  }
-  if (divisor <= 12) {
-    return 3;
-  }
-  return 4;
+  const absDivisor = Math.abs(divisor);
+  const quotient = Math.abs(dividend) / absDivisor;
+  return pairOperandBaseCost(absDivisor, quotient);
 }
 
 export function squareBaseCost(n: number): number {

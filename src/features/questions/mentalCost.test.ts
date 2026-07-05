@@ -33,10 +33,19 @@ describe("calculation template baseCost", () => {
   const cases: Array<{ label: string; spec: CalculationTemplateSpec; expected: number }> = [
     { label: "整數加法 12+15", spec: { kind: "integer-add", a: 12, b: 15 }, expected: 1 },
     { label: "整數加法 47+68", spec: { kind: "integer-add", a: 47, b: 68 }, expected: 2 },
-    { label: "整數減法 23-17", spec: { kind: "integer-subtract", a: 23, b: 12 }, expected: 1 },
-    { label: "整數乘法 14×6", spec: { kind: "integer-multiply", a: 14, b: 6 }, expected: 1 },
+    { label: "整數加法 47+28（單次進位）", spec: { kind: "integer-add", a: 47, b: 28 }, expected: 1 },
+    { label: "整數減法 23-12", spec: { kind: "integer-subtract", a: 23, b: 12 }, expected: 1 },
+    { label: "整數減法 47-28（單次借位）", spec: { kind: "integer-subtract", a: 47, b: 28 }, expected: 1 },
+    { label: "整數減法 150-87（兩次借位）", spec: { kind: "integer-subtract", a: 150, b: 87 }, expected: 2 },
+    { label: "整數乘法 6×7", spec: { kind: "integer-multiply", a: 6, b: 7 }, expected: 1 },
+    { label: "整數乘法 14×6", spec: { kind: "integer-multiply", a: 14, b: 6 }, expected: 2 },
     { label: "整數乘法 19×7", spec: { kind: "integer-multiply", a: 19, b: 7 }, expected: 2 },
+    { label: "整數乘法 18×12", spec: { kind: "integer-multiply", a: 18, b: 12 }, expected: 3 },
+    { label: "整數乘法 42×18", spec: { kind: "integer-multiply", a: 42, b: 18 }, expected: 4 },
+    { label: "整數除法 16÷4", spec: { kind: "integer-divide", dividend: 16, divisor: 4 }, expected: 1 },
     { label: "整數除法 84÷12", spec: { kind: "integer-divide", dividend: 84, divisor: 12 }, expected: 2 },
+    { label: "整數除法 168÷12", spec: { kind: "integer-divide", dividend: 168, divisor: 12 }, expected: 3 },
+    { label: "整數除法 720÷36", spec: { kind: "integer-divide", dividend: 720, divisor: 36 }, expected: 4 },
     { label: "絕對值 |-8|", spec: { kind: "absolute-value" }, expected: 1 },
     { label: "平方 6²", spec: { kind: "square", n: 6 }, expected: 1 },
     { label: "平方 19²", spec: { kind: "square", n: 19 }, expected: 2 },
@@ -80,7 +89,7 @@ describe("calculation template baseCost", () => {
 
 describe("question template mentalCost (32 templates)", () => {
   const arithmeticCases: Array<{ label: string; templates: CalculationTemplateSpec[]; expected: MentalCost }> = [
-    { label: "base × partner (14×6)", templates: [{ kind: "integer-multiply", a: 14, b: 6 }], expected: 1 },
+    { label: "base × partner (14×6)", templates: [{ kind: "integer-multiply", a: 14, b: 6 }], expected: 2 },
     { label: "left + right (12+15)", templates: [{ kind: "integer-add", a: 12, b: 15 }], expected: 1 },
     {
       label: "dividend ÷ divisor (84÷12)",
@@ -93,7 +102,7 @@ describe("question template mentalCost (32 templates)", () => {
         { kind: "integer-add", a: 12, b: 15 },
         { kind: "integer-multiply", a: 2, b: 27 },
       ],
-      expected: 5,
+      expected: 4,
     },
     {
       label: "(a×b)+c ((14×6)+8)",
@@ -110,7 +119,7 @@ describe("question template mentalCost (32 templates)", () => {
         { kind: "square", n: 17 },
         { kind: "integer-subtract", a: 529, b: 289 },
       ],
-      expected: 10,
+      expected: 8,
     },
     {
       label: "(a+b)(a-b) ((25+15)(25-15))",
