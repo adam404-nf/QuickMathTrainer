@@ -55,7 +55,6 @@ export function QuestionCard({
       ) : null}
 
       <p className={styles.prompt}>{question.prompt}</p>
-      <p className={styles.strategy}>{question.strategy}</p>
     </Card>
   );
 }

@@ -17,9 +17,10 @@
 - Session：mode、startedAt、endedAt、attempts、summary。
 
 ## 題目生成原則
-- 採用受控隨機：先選題型與模板，再生成候選題目，最後檢查可心算性、難度與重複度。
-- 題目模板應訓練明確能力，例如平方差、特殊角、基本對數、排列組合公式或概率直覺。
-- mentalCost 使用 1–5 表示心算成本；普通練習以 1–3 為主，進階與挑戰模式再提高。
+- 採用受控隨機：先選題型與模板，再生成候選題目，最後檢查可心算性、重複度與目標 mentalCost bucket。
+- 題目模板應訓練明確能力，例如平方差、分數通分、絕對值與冪次根式。
+- **mentalCost** 使用 **1–11** 表示 intrinsic 心算成本，由 calculation template baseCost 與 working memory 公式計算；與 difficulty 標籤無關。詳細規格見 [10-mental-cost.md](./10-mental-cost.md)。
+- **difficulty** 負責加權選題分佈（easy 主力 5–6、medium 主力 8–9、hard 主力 10–11），不直接改寫題目 cost。
 - 對數、三角函數、排列組合、概率等題型應作為 Question Engine 的獨立 generator 擴展。
 
 ## 技術原則

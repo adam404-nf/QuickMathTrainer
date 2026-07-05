@@ -11,6 +11,8 @@ export const SKILL_TAGS = [
   "fractions",
   "decimals",
   "square-root",
+  "cube-root",
+  "fourth-root",
   "absolute-value",
   "symbolic-simplification",
 ] as const;
@@ -27,6 +29,8 @@ export const SKILL_TAG_LABELS: Record<SkillTag, string> = {
   fractions: "分數",
   decimals: "小數",
   "square-root": "平方根",
+  "cube-root": "三次方根",
+  "fourth-root": "四次方根",
   "absolute-value": "絕對值",
   "symbolic-simplification": "符號化簡",
 };

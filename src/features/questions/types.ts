@@ -1,3 +1,5 @@
+import type { MentalCostBucket } from "./mentalCost";
+
 export type Difficulty = "easy" | "medium" | "hard";
 
 export type QuestionKind = "fill-in" | "multiple-choice";
@@ -6,7 +8,12 @@ export type QuestionType = "arithmetic" | "fractions" | "powers";
 
 export type PracticeMode = "mixed" | "weakness-focused" | QuestionType;
 
-export type MentalCost = 1 | 2 | 3 | 4 | 5;
+export type MentalCost = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+
+export interface QuestionTechnique {
+  name: string;
+  steps: readonly string[];
+}
 
 export interface Question {
   id: string;
@@ -18,7 +25,7 @@ export interface Question {
   difficulty: Difficulty;
   tags: string[];
   mentalCost: MentalCost;
-  strategy: string;
+  technique: QuestionTechnique;
 }
 
 export interface QuestionContext {
@@ -33,6 +40,7 @@ export interface GenerateQuestionInput {
   targetTags?: string[];
   targetTypes?: QuestionType[];
   selectedQuestionTypes?: QuestionType[];
+  targetMentalCostBucket?: MentalCostBucket;
 }
 
 export type QuestionGenerator = (

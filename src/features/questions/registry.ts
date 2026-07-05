@@ -2,6 +2,12 @@ import { isQuestionValid } from "./constraints";
 import { generateArithmeticQuestion } from "./generators/arithmetic";
 import { generateFractionQuestion } from "./generators/fractions";
 import { generatePowersQuestion } from "./generators/powers";
+import {
+  fallbackBucketsForDifficulty,
+  matchesMentalCostBucket,
+  pickTargetMentalCostBucket,
+  type MentalCostBucket,
+} from "./mentalCost";
 import { getQuestionTypesForTags } from "./templates";
 import type { GenerateQuestionInput, Question, QuestionGenerator, QuestionType } from "./types";
 import { pickOne } from "./utils";
@@ -14,7 +20,7 @@ const generatorByType: Record<QuestionType, QuestionGenerator> = {
 
 export const availableQuestionTypes = Object.keys(generatorByType) as QuestionType[];
 
-const MAX_GENERATION_ATTEMPTS = 40;
+const MAX_GENERATION_ATTEMPTS = 100;
 
 function questionMatchesTargetTags(question: Question, targetTags?: string[]): boolean {
   if (!targetTags || targetTags.length === 0) {
@@ -62,23 +68,34 @@ function getEligibleTypes(input: GenerateQuestionInput): QuestionType[] {
   return availableQuestionTypes.filter((type) => type === input.mode);
 }
 
-function tryGenerateQuestion(input: GenerateQuestionInput): Question | undefined {
+function tryGenerateQuestion(
+  input: GenerateQuestionInput,
+  buckets: MentalCostBucket[],
+  options?: { requireBucketMatch?: boolean },
+): Question | undefined {
+  const requireBucketMatch = options?.requireBucketMatch ?? true;
   const eligibleTypes = getEligibleTypes(input);
 
   if (eligibleTypes.length === 0) {
     return undefined;
   }
 
-  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
-    const type = pickOne(eligibleTypes);
-    const candidate = generatorByType[type](input);
+  for (const bucket of buckets) {
+    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
+      const type = pickOne(eligibleTypes);
+      const candidate = generatorByType[type]({
+        ...input,
+        targetMentalCostBucket: requireBucketMatch ? bucket : undefined,
+      });
 
-    if (
-      candidate &&
-      questionMatchesTargetTags(candidate, input.targetTags) &&
-      isQuestionValid(candidate, input.difficulty, input.context.seenQuestionIds)
-    ) {
-      return candidate;
+      if (
+        candidate &&
+        questionMatchesTargetTags(candidate, input.targetTags) &&
+        (!requireBucketMatch || matchesMentalCostBucket(candidate.mentalCost, bucket)) &&
+        isQuestionValid(candidate, input.difficulty, input.context.seenQuestionIds)
+      ) {
+        return candidate;
+      }
     }
   }
 
@@ -86,7 +103,11 @@ function tryGenerateQuestion(input: GenerateQuestionInput): Question | undefined
 }
 
 export function generateQuestion(input: GenerateQuestionInput): Question {
-  const candidate = tryGenerateQuestion(input);
+  const primaryBucket = pickTargetMentalCostBucket(input.difficulty);
+  const buckets = [primaryBucket, ...fallbackBucketsForDifficulty(input.difficulty).filter((bucket) => bucket !== primaryBucket)];
+  const requireBucketMatch = input.mode === "mixed";
+
+  const candidate = tryGenerateQuestion(input, buckets, { requireBucketMatch });
 
   if (candidate) {
     return candidate;
@@ -95,11 +116,22 @@ export function generateQuestion(input: GenerateQuestionInput): Question {
   if (input.mode === "weakness-focused" && input.targetTags && input.targetTags.length > 0) {
     const tagCompatibleTypes = getQuestionTypesForTags(input.targetTags);
 
+    const tagFirstCandidate = tryGenerateQuestion(input, fallbackBucketsForDifficulty(input.difficulty), {
+      requireBucketMatch: false,
+    });
+
+    if (tagFirstCandidate) {
+      return tagFirstCandidate;
+    }
+
     if (tagCompatibleTypes.length > 0) {
-      const relaxedCandidate = tryGenerateQuestion({
-        ...input,
-        targetTypes: tagCompatibleTypes,
-      });
+      const relaxedCandidate = tryGenerateQuestion(
+        {
+          ...input,
+          targetTypes: tagCompatibleTypes,
+        },
+        fallbackBucketsForDifficulty(input.difficulty),
+      );
 
       if (relaxedCandidate) {
         return relaxedCandidate;
@@ -113,6 +145,7 @@ export function generateQuestion(input: GenerateQuestionInput): Question {
     mode: "mixed",
     targetTags: undefined,
     targetTypes: undefined,
+    targetMentalCostBucket: undefined,
   });
 
   if (!fallback) {

@@ -68,17 +68,40 @@
   text-align: center;
 }
 
-.strategy {
+.strategy,
+.techniqueBlock {
   background: var(--color-muted-bg);
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-muted);
   font-size: 0.82rem;
   line-height: 1.5;
-  margin: 0 auto;
-  max-width: 34rem;
-  padding: 0.5rem 0.85rem;
-  text-align: center;
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  width: 100%;
+}
+
+.techniqueTitle {
+  color: inherit;
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.45rem;
+}
+
+.techniqueSteps {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.techniqueSteps li + li {
+  margin-top: 0.35rem;
+}
+
+.feedbackContent {
+  display: grid;
+  flex: 1;
+  gap: 0.75rem;
 }
 
 .answerCard {
@@ -171,12 +194,12 @@
 
 .correctFeedback,
 .wrongFeedback {
-  align-items: center;
+  align-items: stretch;
   animation: fadeSlideUp var(--motion-base) var(--ease-out) both;
   border-radius: var(--radius-lg);
   display: flex;
+  flex-direction: column;
   gap: var(--space-md);
-  justify-content: space-between;
   padding: 1rem 1.15rem;
 }
 
@@ -193,7 +216,7 @@
 }
 
 .feedbackBody {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   gap: 0.85rem;
 }

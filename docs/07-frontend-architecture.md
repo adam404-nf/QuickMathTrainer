@@ -26,6 +26,8 @@ src/
       session.ts
       types.ts
     questions/
+      calculationTemplates.ts
+      mentalCost.ts
       generators/
       templates.ts
       constraints.ts
@@ -75,11 +77,13 @@ src/
 
 負責題目模型、題目生成與題型註冊。
 
-- `types.ts` 定義 `Question`、題型、答案格式、難度、標籤與 `mentalCost`。
-- `generators/` 放各題型生成器，例如四則、分數、小數、冪次、對數、三角函數、排列組合、概率。
-- `templates.ts` 定義題目形式，例如接近整十數乘法、平方差、特殊角三角函數、基本對數與排列組合公式。
-- `constraints.ts` 檢查題目品質，例如可心算性、是否太簡單、是否超出 mental cost、是否近期重複。
-- `registry.ts` 作為題型入口，讓 practice 不需要知道每個生成器細節。
+- `types.ts` 定義 `Question`、題型、答案格式、難度、標籤與 `mentalCost`（1–11）。
+- `calculationTemplates.ts` 定義各計算模板的 baseCost 規則與 `calculateMentalCost()`。
+- `mentalCost.ts` 定義 difficulty 加權選題分佈（bucket）。
+- `generators/` 放各題型生成器，例如四則、分數、小數、冪次。
+- `templates.ts` 定義題目形式，並將每題拆成 calculation templates 以計算 intrinsic mentalCost。
+- `constraints.ts` 檢查題目合法性，例如是否重複 ID、選擇題選項是否有效。
+- `registry.ts` 作為題型入口：先抽目標 mentalCost bucket，再重試生成符合 bucket 的題目。
 - `utils.ts` 放純函式工具，例如亂數、答案正規化與避免重複題目。
 
 這層不依賴 React，不處理 UI，方便測試與擴展。
@@ -118,35 +122,36 @@ src/
 
 ```text
 Practice Session 要下一題
-→ Question Registry 選題型
-→ Generator 選模板
-→ Template 產生候選題目
-→ Constraints 檢查 mentalCost / difficulty / 重複度
-→ 通過後回傳 Question
+→ Registry 依 difficulty 抽目標 mentalCost bucket
+→ 選題型 → Generator 選模板 → 產生候選題目
+→ 拆成 calculation templates → 計算 intrinsic mentalCost
+→ 符合 bucket？→ Constraints 檢查合法性 → 回傳 Question
+→ 不符合 → 重試
 → Practice 顯示題卡
 ```
 
 每題建議保留 metadata：
 
 ```text
-type：題型，例如 multiplication、logarithm、trigonometry
-difficulty：easy / medium / hard
+type：題型，例如 arithmetic、fractions、powers
+difficulty：easy / medium / hard（加權選題分佈，不計價）
 tags：章節、技巧、能力點
-mentalCost：1–5，代表心算成本
-strategy：預期使用的心算方法
+mentalCost：1–11，intrinsic 心算成本（詳見 10-mental-cost.md）
+technique：預期使用的心算方法與步驟
 ```
 
-`mentalCost` 定義：
+### mentalCost 概要
+
+`mentalCost` 是**題目固有**的心算負荷分數，範圍 **1–11**，由以下公式決定：
 
 ```text
-1 = 秒答
-2 = 一步心算
-3 = 兩步心算
-4 = 多步但仍可不用紙筆
-5 = 挑戰型心算
+mentalCost = Σ (各 calculation template 的 baseCost) + max(0, templateCount − 1)
 ```
 
-普通練習主要控制在 `1–3`，進階練習控制在 `2–4`，挑戰模式才使用 `3–5`。
+- 同一 prompt 在 easy / medium / hard 下 cost **相同**。
+- `difficulty` 只決定「這次要找哪個 cost 的題」（加權 bucket），不直接改寫 cost。
+
+完整規格、20 種 calculation template 分級表、32 個 question template 拆分範例，見 **[10-mental-cost.md](./10-mental-cost.md)**。
 
 MVP 建議每個核心題型先有 `3–5` 個高品質模板；整體約 `15–25` 個模板即可支撐第一版練習流程。後續再依重複感與使用者表現擴到每個題型 `6–10` 個模板。
 
