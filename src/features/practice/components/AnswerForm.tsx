@@ -23,50 +23,66 @@ export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmi
     }
   }
 
+  const isMultipleChoice = question.kind === "multiple-choice" && question.options;
+
   return (
     <Card className={styles.answerCard}>
       <form className={styles.answerForm} onSubmit={handleSubmit}>
-        {question.kind === "multiple-choice" && question.options ? (
-          <div className={styles.options} role="group" aria-label="選擇答案">
-            {question.options.map((option) => {
-              const isSelected = answer === option;
+        {isMultipleChoice ? (
+          <>
+            <p className={styles.answerLabel} id="answer-options-label">
+              選擇答案
+            </p>
+            <div
+              aria-labelledby="answer-options-label"
+              className={styles.options}
+              role="group"
+            >
+              {question.options!.map((option) => {
+                const isSelected = answer === option;
 
-              return (
-                <button
-                  aria-pressed={isSelected}
-                  className={isSelected ? styles.optionActive : styles.option}
-                  disabled={disabled}
-                  key={option}
-                  onClick={() => onAnswerChange(option)}
-                  type="button"
-                >
-                  {option}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-
-        <label className={styles.answerLabel} htmlFor="answer">
-          你的答案
-        </label>
-        <div className={styles.answerRow}>
-          <input
-            autoComplete="off"
-            autoFocus
-            className={styles.answerInput}
-            disabled={disabled}
-            id="answer"
-            inputMode="decimal"
-            onChange={(event) => onAnswerChange(event.target.value)}
-            placeholder="輸入答案後按 Enter"
-            type="text"
-            value={answer}
-          />
-          <Button disabled={disabled || !canSubmit} type="submit">
-            送出
-          </Button>
-        </div>
+                return (
+                  <button
+                    aria-pressed={isSelected}
+                    className={isSelected ? styles.optionActive : styles.option}
+                    disabled={disabled}
+                    key={option}
+                    onClick={() => onAnswerChange(option)}
+                    type="button"
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+            <Button disabled={disabled || !canSubmit} type="submit">
+              送出
+            </Button>
+          </>
+        ) : (
+          <>
+            <label className={styles.answerLabel} htmlFor="answer">
+              你的答案
+            </label>
+            <div className={styles.answerRow}>
+              <input
+                autoComplete="off"
+                autoFocus
+                className={styles.answerInput}
+                disabled={disabled}
+                id="answer"
+                inputMode="decimal"
+                onChange={(event) => onAnswerChange(event.target.value)}
+                placeholder="輸入答案後按 Enter"
+                type="text"
+                value={answer}
+              />
+              <Button disabled={disabled || !canSubmit} type="submit">
+                送出
+              </Button>
+            </div>
+          </>
+        )}
       </form>
     </Card>
   );

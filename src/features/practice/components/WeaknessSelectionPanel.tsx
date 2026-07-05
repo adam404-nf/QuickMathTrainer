@@ -104,8 +104,8 @@ export function WeaknessSelectionPanel({
       <div className={styles.header}>
         <div>
           <p className={styles.eyebrow}>弱項分析</p>
-          <h2>選擇要專攻的弱項</h2>
-          <p className={styles.lead}>可勾選 2–3 項或任意組合，也可一次選全部弱項。</p>
+          <h2>鎖定弱項，開始專攻</h2>
+          <p className={styles.lead}>勾選 2–3 項或任意組合，也可一次選全部弱項。</p>
         </div>
         <Button onClick={onBack} variant="ghost">
           返回首頁

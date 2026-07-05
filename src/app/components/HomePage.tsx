@@ -23,6 +23,12 @@ interface HomePageProps {
 
 const QUESTION_TYPES = Object.keys(QUESTION_TYPE_LABELS) as QuestionType[];
 
+const DIFFICULTY_LABELS: Record<PracticePreferences["difficulty"], string> = {
+  easy: "基礎",
+  medium: "標準",
+  hard: "挑戰",
+};
+
 export function HomePage({
   preferences,
   quickPracticeType,
@@ -36,12 +42,23 @@ export function HomePage({
 }: HomePageProps) {
   return (
     <div className={styles.home}>
+      <div className={styles.numberMascots} aria-hidden="true">
+        <span className={`${styles.numberMascot} ${styles.numberMascotOne}`}>7</span>
+        <span className={`${styles.numberMascot} ${styles.numberMascotTwo}`}>π</span>
+        <span className={`${styles.numberMascot} ${styles.numberMascotThree}`}>12</span>
+        <span className={`${styles.numberMascot} ${styles.numberMascotFour}`}>√</span>
+      </div>
       <header className={styles.hero}>
-        <p className={styles.eyebrow}>QuickMathOwo</p>
-        <h1>你的數學訓練基地</h1>
-        <p className={styles.lead}>選一個模式開始，專注提升速度、準確率與數字敏感度。</p>
+        <p className={styles.eyebrow}>QuickMathOwo · Precision Lab</p>
+        <h1>把每一次心算，校準到更穩更準</h1>
+        <p className={styles.lead}>
+          面向 IAL、DSE、高考語境的 Flashcard 速算訓練。像在實驗台上校準反應速度：答題、回饋、診斷、再專攻。
+        </p>
         {latestAccuracy !== undefined ? (
-          <p className={styles.latestStat}>最近一輪正確率 {Math.round(latestAccuracy * 100)}%</p>
+          <p className={styles.latestStat}>
+            <span className={styles.latestStatLabel}>最近一輪</span>
+            <span className={styles.latestStatValue}>{Math.round(latestAccuracy * 100)}%</span>
+          </p>
         ) : null}
       </header>
 
@@ -56,9 +73,13 @@ export function HomePage({
               }
               value={preferences.difficulty}
             >
-              <option value="easy">easy</option>
-              <option value="medium">medium</option>
-              <option value="hard">hard</option>
+              {(Object.keys(DIFFICULTY_LABELS) as PracticePreferences["difficulty"][]).map(
+                (level) => (
+                  <option key={level} value={level}>
+                    {DIFFICULTY_LABELS[level]}
+                  </option>
+                ),
+              )}
             </select>
           </label>
           <label>
@@ -79,11 +100,12 @@ export function HomePage({
 
       <section className={styles.modeGrid} aria-label="訓練模式">
         <Card className={styles.modeCard}>
-          <div className={styles.modeIcon} aria-hidden="true">
+          <div className={styles.modeCardStripe} aria-hidden="true" />
+          <div className={`${styles.modeIcon} ${styles.modeIconQuick}`} aria-hidden="true">
             <span className={styles.modeIconGlyph}>+</span>
           </div>
           <h2>快速練習</h2>
-          <p>專注單一題型，建立穩定節奏。</p>
+          <p>專注單一題型，建立穩定節奏與計算手感。</p>
           <div className={styles.typeChips} role="group" aria-label="快速練習題型">
             {QUESTION_TYPES.map((type) => (
               <button
@@ -103,22 +125,24 @@ export function HomePage({
         </Card>
 
         <Card className={styles.modeCard}>
+          <div className={`${styles.modeCardStripe} ${styles.modeCardStripeAmber}`} aria-hidden="true" />
           <div className={`${styles.modeIcon} ${styles.modeIconWeakness}`} aria-hidden="true">
             <span className={styles.modeIconGlyph}>◎</span>
           </div>
-          <h2>弱項分析</h2>
-          <p>查看全部弱項，多選 2–3 項或全部弱項開始專攻。</p>
+          <h2>弱項專攻</h2>
+          <p>依歷史紀錄鎖定偏弱能力，像校準儀器一樣逐項修正。</p>
           <Button className={styles.modeAction} onClick={onOpenWeakness} variant="secondary">
             查看弱項
           </Button>
         </Card>
 
         <Card className={`${styles.modeCard} ${styles.modeCardFeatured}`}>
+          <div className={`${styles.modeCardStripe} ${styles.modeCardStripeSlate}`} aria-hidden="true" />
           <div className={`${styles.modeIcon} ${styles.modeIconQuiz}`} aria-hidden="true">
             <span className={styles.modeIconGlyph}>∑</span>
           </div>
           <h2>混合測驗</h2>
-          <p>混合所有題型，模擬完整測驗節奏。</p>
+          <p>混合所有題型，訓練考場需要的切換速度與穩定性。</p>
           <Button className={styles.modeAction} onClick={onStartQuiz}>
             開始混合測驗
           </Button>

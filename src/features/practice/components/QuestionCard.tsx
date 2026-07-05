@@ -3,6 +3,12 @@ import { getSkillTagLabel } from "../../questions/tags";
 import { Card } from "../../../shared/components/Card";
 import styles from "./PracticeComponents.module.css";
 
+const DIFFICULTY_LABELS: Record<Question["difficulty"], string> = {
+  easy: "基礎",
+  medium: "標準",
+  hard: "挑戰",
+};
+
 interface QuestionCardProps {
   question: Question;
   currentIndex: number;
@@ -26,7 +32,7 @@ export function QuestionCard({
         <span className={styles.questionCounter}>
           第 {currentIndex + 1} / {totalQuestions} 題
         </span>
-        <span className={styles.difficultyBadge}>{question.difficulty}</span>
+        <span className={styles.difficultyBadge}>{DIFFICULTY_LABELS[question.difficulty]}</span>
       </div>
 
       <div

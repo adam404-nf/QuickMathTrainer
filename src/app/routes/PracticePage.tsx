@@ -32,6 +32,7 @@ import { Button } from "../../shared/components/Button";
 import { Card } from "../../shared/components/Card";
 import { createLocalStorageAdapter } from "../../shared/storage/localStorageAdapter";
 import { formatMilliseconds, formatPercent } from "../../shared/utils/format";
+import { confirmExitPractice } from "./practiceNavigation";
 import styles from "./PracticePage.module.css";
 
 const preferencesStorage = createLocalStorageAdapter<PracticePreferences>("quickmathowo.preferences.v1");
@@ -184,7 +185,12 @@ export function PracticePage() {
   }
 
   function handleGoHome(): void {
+    if (!confirmExitPractice(session, practice.latestAttempt)) {
+      return;
+    }
+
     setAnswer("");
+    practice.abandon();
     setScreen("home");
   }
 
@@ -202,7 +208,7 @@ export function PracticePage() {
   const allWeakTagKeys = weaknessData.breakdown.weakTags.map((metric) => metric.key);
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} data-screen={screen}>
       {screen === "home" ? (
         <HomePage
           latestAccuracy={latestHistory?.summary.accuracy}
@@ -234,9 +240,9 @@ export function PracticePage() {
           <header className={styles.practiceHeader}>
             <div>
               <p className={styles.eyebrow}>{getPracticeModeLabel(session.preferences.mode)}</p>
-              <h1>專注作答</h1>
+              <h1>速算進行中</h1>
             </div>
-            <Button onClick={handleGoHome} variant="ghost">
+            <Button className={styles.headerExitButton} onClick={handleGoHome} variant="secondary">
               返回首頁
             </Button>
           </header>
@@ -254,6 +260,7 @@ export function PracticePage() {
               ) : (
                 <>
                   <QuestionCard
+                    key={session.currentIndex}
                     currentIndex={session.currentIndex}
                     focusTags={
                       session.preferences.mode === "weakness-focused"
@@ -297,18 +304,26 @@ export function PracticePage() {
                     </div>
                   </dl>
                 ) : (
-                  <dl className={styles.historyStats}>
-                    <div>
-                      <dt>目前題號</dt>
-                      <dd>
-                        {session.currentIndex + 1} / {session.preferences.questionLimit}
-                      </dd>
+                  <>
+                    <dl className={styles.historyStats}>
+                      <div>
+                        <dt>目前題號</dt>
+                        <dd>
+                          {session.currentIndex + 1} / {session.preferences.questionLimit}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>已答</dt>
+                        <dd>{session.attempts.length}</dd>
+                      </div>
+                    </dl>
+                    <div className={styles.sideExit}>
+                      <p className={styles.sideHint}>測驗進行中也可返回首頁。</p>
+                      <Button className={styles.sideExitButton} onClick={handleGoHome} variant="secondary">
+                        返回首頁
+                      </Button>
                     </div>
-                    <div>
-                      <dt>已答</dt>
-                      <dd>{session.attempts.length}</dd>
-                    </div>
-                  </dl>
+                  </>
                 )}
               </Card>
 
@@ -335,6 +350,14 @@ export function PracticePage() {
               </Card>
             </aside>
           </div>
+
+          {session.status !== "finished" ? (
+            <div className={styles.mobileExitBar}>
+              <Button className={styles.mobileExitButton} onClick={handleGoHome} variant="secondary">
+                返回首頁
+              </Button>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </main>

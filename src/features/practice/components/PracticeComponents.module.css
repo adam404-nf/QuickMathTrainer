@@ -1,7 +1,8 @@
 .questionCard {
+  animation: questionEnter var(--motion-base) var(--ease-out) both;
   display: grid;
-  gap: 1rem;
-  min-height: 16rem;
+  gap: var(--space-md);
+  min-height: 14rem;
 }
 
 .questionMeta {
@@ -11,76 +12,89 @@
 }
 
 .questionCounter {
-  color: #64748b;
-  font-size: 0.9rem;
-  font-weight: 700;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .difficultyBadge,
 .modeBadge {
-  background: #eff6ff;
-  border-radius: 999px;
-  color: #1d4ed8;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  padding: 0.35rem 0.75rem;
+  background: var(--color-primary-dim);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.7rem;
   text-transform: uppercase;
 }
 
 .modeBadge {
   justify-self: start;
   margin: 0;
+  width: fit-content;
 }
 
 .progressTrack {
-  background: #e4ecfc;
-  border-radius: 999px;
-  height: 0.55rem;
+  background: var(--color-muted-bg);
+  border-radius: var(--radius-pill);
+  height: 0.4rem;
   overflow: hidden;
   width: 100%;
 }
 
 .progressFill {
-  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  background: var(--color-primary);
   border-radius: inherit;
   display: block;
   height: 100%;
-  transition: width 220ms ease-out;
+  transition: width var(--motion-base) var(--ease-out);
 }
 
 .prompt {
-  color: #0f172a;
-  font-family: "Baloo 2", Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: clamp(2.6rem, 10vw, 4.8rem);
+  color: var(--color-foreground);
+  font-family: var(--font-mono);
+  font-size: clamp(2rem, 9vw, 4rem);
   font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
   margin: 0;
+  padding: var(--space-sm) 0;
   text-align: center;
 }
 
 .strategy {
-  color: #64748b;
+  background: var(--color-muted-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
   margin: 0 auto;
   max-width: 34rem;
+  padding: 0.5rem 0.85rem;
   text-align: center;
 }
 
 .answerCard {
-  padding-top: 1.25rem;
+  animation: fadeSlideUp var(--motion-base) var(--ease-out) 60ms both;
+  padding-top: 0.5rem;
 }
 
 .answerForm {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-md);
 }
 
 .answerLabel {
-  color: #475569;
-  font-size: 0.95rem;
-  font-weight: 700;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .answerRow {
@@ -90,79 +104,92 @@
 }
 
 .answerInput {
-  background: #ffffff;
-  border: 2px solid #e4ecfc;
-  border-radius: 999px;
-  color: #0f172a;
-  font: inherit;
-  font-size: 1.2rem;
+  background: var(--color-muted-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-foreground);
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
   min-height: 3rem;
-  padding: 0.85rem 1rem;
+  padding: 0.85rem 1.1rem;
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
+}
+
+.answerInput::placeholder {
+  color: rgba(148, 163, 184, 0.6);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
 }
 
 .answerInput:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-dim);
   outline: 0;
 }
 
 .options {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.65rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .option,
 .optionActive {
-  border-radius: 1rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font: inherit;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
   min-height: 3rem;
-  padding: 1rem;
+  padding: 0.85rem 1rem;
   transition:
-    background-color 150ms ease,
-    border-color 150ms ease,
-    transform 150ms ease;
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) var(--ease-out);
 }
 
 .option {
-  background: #ffffff;
-  border: 2px solid #e4ecfc;
-  color: #0f172a;
+  background: var(--color-muted-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-foreground);
 }
 
 .optionActive {
-  background: #dbeafe;
-  border: 2px solid #2563eb;
-  color: #1d4ed8;
+  background: var(--color-primary-dim);
+  border: 1px solid var(--color-border-strong);
+  box-shadow: 0 8px 18px rgba(0, 109, 119, 0.08);
+  color: var(--color-primary);
 }
 
 .option:hover:not(:disabled),
 .optionActive:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .correctFeedback,
 .wrongFeedback {
   align-items: center;
-  border-radius: 1.25rem;
+  animation: fadeSlideUp var(--motion-base) var(--ease-out) both;
+  border-radius: var(--radius-lg);
   display: flex;
-  gap: 1rem;
+  gap: var(--space-md);
   justify-content: space-between;
-  padding: 1rem 1.1rem;
+  padding: 1rem 1.15rem;
 }
 
 .correctFeedback {
-  background: #dcfce7;
-  border: 2px solid #86efac;
-  color: #166534;
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  color: var(--color-success);
 }
 
 .wrongFeedback {
-  background: #fee2e2;
-  border: 2px solid #fca5a5;
-  color: #991b1b;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error);
 }
 
 .feedbackBody {
@@ -173,8 +200,8 @@
 
 .feedbackIcon {
   align-items: center;
-  background: rgba(255, 255, 255, 0.55);
-  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
   display: inline-flex;
   font-size: 1.1rem;
   font-weight: 800;
@@ -185,52 +212,76 @@
 
 .correctFeedback p,
 .wrongFeedback p {
+  color: var(--color-muted);
   margin: 0.25rem 0 0;
 }
 
 .summaryCard {
+  animation: fadeSlideUp var(--motion-slow) var(--ease-out) both;
   display: grid;
-  gap: 1.5rem;
+  gap: var(--space-lg);
 }
 
 .eyebrow {
-  color: #2563eb;
-  font-size: 0.85rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
   margin: 0;
   text-transform: uppercase;
 }
 
 .summaryCard h2,
 .mistakes h3 {
-  color: #0f172a;
-  font-family: "Baloo 2", Inter, ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-foreground);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
   margin: 0;
 }
 
 .summaryGrid {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-md);
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .summaryGrid div {
-  background: #f8fafc;
-  border: 2px solid #e4ecfc;
-  border-radius: 1rem;
+  animation: statStagger var(--motion-base) var(--ease-out) both;
+  background: var(--color-muted-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 1rem;
+  text-align: center;
+}
+
+.summaryGrid div:nth-child(1) {
+  animation-delay: 80ms;
+}
+
+.summaryGrid div:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.summaryGrid div:nth-child(3) {
+  animation-delay: 200ms;
 }
 
 .summaryGrid strong {
-  color: #0f172a;
+  color: var(--color-primary);
   display: block;
-  font-size: 1.8rem;
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
 
 .summaryGrid span {
-  color: #64748b;
+  color: var(--color-muted);
+  display: block;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
 }
 
 .mistakes {
@@ -238,20 +289,36 @@
   gap: 0.75rem;
 }
 
+.mistakes h3 {
+  font-size: 1rem;
+}
+
 .mistakes ul {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.65rem;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .mistakes li {
-  background: #f8fafc;
-  border-radius: 0.9rem;
+  background: var(--color-muted-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   display: grid;
+  font-size: 0.9rem;
   gap: 0.25rem;
   padding: 0.75rem;
+}
+
+.mistakes li span:first-child {
+  color: var(--color-foreground);
+  font-family: var(--font-mono);
+}
+
+.mistakes li span:last-child {
+  color: var(--color-muted);
+  font-size: 0.85rem;
 }
 
 .weaknessSection,
@@ -262,23 +329,25 @@
 
 .weaknessSection h3,
 .weaknessGroup h4 {
+  color: var(--color-foreground);
+  font-size: 0.95rem;
   margin: 0;
 }
 
 .weaknessGroup ul {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.65rem;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .weaknessItem {
-  background: #fff7ed;
-  border: 2px solid #fed7aa;
-  border-radius: 0.9rem;
+  background: var(--color-secondary-dim);
+  border: 1px solid #ebcf8d;
+  border-radius: var(--radius-md);
   display: grid;
-  gap: 0.5rem;
+  gap: 0.45rem;
   padding: 0.85rem;
 }
 
@@ -289,19 +358,20 @@
 }
 
 .weaknessStatus {
-  color: #c2410c;
-  font-size: 0.85rem;
+  color: var(--color-secondary);
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
 .weaknessStats,
 .weaknessDiagnosis {
-  color: #7c2d12;
+  color: var(--color-muted);
+  font-size: 0.88rem;
   margin: 0;
 }
 
 .weaknessDiagnosis {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .focusButton {
@@ -309,13 +379,14 @@
 }
 
 .focusBanner {
-  background: #eff6ff;
-  border-radius: 999px;
-  color: #1d4ed8;
-  font-size: 0.9rem;
-  font-weight: 700;
+  background: var(--color-primary-dim);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
   margin: 0;
-  padding: 0.45rem 0.85rem;
+  padding: 0.4rem 0.85rem;
   text-align: center;
 }
 
@@ -323,6 +394,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.emptyMessage {
+  color: var(--color-muted);
+  margin: 0;
 }
 
 @media (max-width: 640px) {
@@ -340,9 +416,23 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .questionCard,
+  .answerCard,
+  .correctFeedback,
+  .wrongFeedback,
+  .summaryCard,
+  .summaryGrid div {
+    animation: none;
+  }
+
   .progressFill,
   .option,
   .optionActive {
     transition: none;
+  }
+
+  .option:hover:not(:disabled),
+  .optionActive:hover:not(:disabled) {
+    transform: none;
   }
 }

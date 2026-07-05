@@ -49,6 +49,11 @@ export function usePracticeSession(preferences: PracticePreferences) {
     restart(nextPreferences);
   }
 
+  function abandon(): void {
+    setSession(null);
+    setLatestAttempt(undefined);
+  }
+
   return {
     session,
     latestAttempt,
@@ -57,5 +62,6 @@ export function usePracticeSession(preferences: PracticePreferences) {
     next,
     restart,
     start,
+    abandon,
   };
 }
