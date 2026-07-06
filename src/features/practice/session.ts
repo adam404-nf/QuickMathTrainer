@@ -53,6 +53,18 @@ export function createPracticeSession(preferences: PracticePreferences): Practic
   };
 }
 
+export function revealAnswer(session: PracticeSession): SubmittedAnswer {
+  const result = submitAnswer(session, "");
+
+  return {
+    ...result,
+    attempt: {
+      ...result.attempt,
+      revealed: true,
+    },
+  };
+}
+
 export function submitAnswer(session: PracticeSession, userAnswer: string): SubmittedAnswer {
   const now = performance.now();
   const isCorrect = isAnswerCorrect(userAnswer, session.currentQuestion.answer);

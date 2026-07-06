@@ -9,11 +9,31 @@ interface AnswerFormProps {
   question: Question;
   answer: string;
   disabled: boolean;
+  canGoPrevious: boolean;
+  canRevealAnswer: boolean;
+  canGoNext: boolean;
+  nextLabel: string;
   onAnswerChange: (answer: string) => void;
   onSubmit: () => void;
+  onPrevious: () => void;
+  onRevealAnswer: () => void;
+  onNext: () => void;
 }
 
-export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmit }: AnswerFormProps) {
+export function AnswerForm({
+  question,
+  answer,
+  disabled,
+  canGoPrevious,
+  canRevealAnswer,
+  canGoNext,
+  nextLabel,
+  onAnswerChange,
+  onSubmit,
+  onPrevious,
+  onRevealAnswer,
+  onNext,
+}: AnswerFormProps) {
   const canSubmit = Boolean(answer.trim());
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -60,6 +80,34 @@ export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmi
             <Button disabled={disabled || !canSubmit} type="submit">
               送出
             </Button>
+            <div className={styles.answerNav}>
+              <Button
+                className={styles.answerNavButton}
+                disabled={!canGoPrevious}
+                onClick={onPrevious}
+                type="button"
+                variant="secondary"
+              >
+                上一題
+              </Button>
+              <Button
+                className={styles.answerNavButton}
+                disabled={!canRevealAnswer}
+                onClick={onRevealAnswer}
+                type="button"
+                variant="secondary"
+              >
+                看答案
+              </Button>
+              <Button
+                className={styles.answerNavButton}
+                disabled={!canGoNext}
+                onClick={onNext}
+                type="button"
+              >
+                {nextLabel}
+              </Button>
+            </div>
           </>
         ) : (
           <>
@@ -87,6 +135,34 @@ export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmi
               />
               <Button disabled={disabled || !canSubmit} type="submit">
                 送出
+              </Button>
+            </div>
+            <div className={styles.answerNav}>
+              <Button
+                className={styles.answerNavButton}
+                disabled={!canGoPrevious}
+                onClick={onPrevious}
+                type="button"
+                variant="secondary"
+              >
+                上一題
+              </Button>
+              <Button
+                className={styles.answerNavButton}
+                disabled={!canRevealAnswer}
+                onClick={onRevealAnswer}
+                type="button"
+                variant="secondary"
+              >
+                看答案
+              </Button>
+              <Button
+                className={styles.answerNavButton}
+                disabled={!canGoNext}
+                onClick={onNext}
+                type="button"
+              >
+                {nextLabel}
               </Button>
             </div>
           </>

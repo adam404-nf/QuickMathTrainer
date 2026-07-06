@@ -1,29 +1,29 @@
 import type { Attempt } from "../../results/types";
-import { Button } from "../../../shared/components/Button";
 import { formatMilliseconds } from "../../../shared/utils/format";
 import styles from "./PracticeComponents.module.css";
 
 interface FeedbackPanelProps {
   attempt: Attempt;
-  isLastQuestion: boolean;
-  onNext: () => void;
 }
 
-export function FeedbackPanel({ attempt, isLastQuestion, onNext }: FeedbackPanelProps) {
+export function FeedbackPanel({ attempt }: FeedbackPanelProps) {
   const { technique } = attempt.question;
+  const feedbackTitle = attempt.revealed ? "已顯示答案" : attempt.isCorrect ? "答對了" : "答錯了";
+  const feedbackClass = attempt.revealed
+    ? styles.revealedFeedback
+    : attempt.isCorrect
+      ? styles.correctFeedback
+      : styles.wrongFeedback;
 
   return (
-    <section
-      aria-live="polite"
-      className={attempt.isCorrect ? styles.correctFeedback : styles.wrongFeedback}
-    >
+    <section aria-live="polite" className={feedbackClass}>
       <div className={styles.feedbackContent}>
         <div className={styles.feedbackBody}>
           <span aria-hidden="true" className={styles.feedbackIcon}>
-            {attempt.isCorrect ? "✓" : "×"}
+            {attempt.revealed ? "…" : attempt.isCorrect ? "✓" : "×"}
           </span>
           <div>
-            <strong>{attempt.isCorrect ? "答對了" : "答錯了"}</strong>
+            <strong>{feedbackTitle}</strong>
             <p>
               正確答案：{attempt.correctAnswer}，用時 {formatMilliseconds(attempt.timeMs)}
             </p>
@@ -39,8 +39,6 @@ export function FeedbackPanel({ attempt, isLastQuestion, onNext }: FeedbackPanel
           </ol>
         </div>
       </div>
-
-      <Button onClick={onNext}>{isLastQuestion ? "查看統計" : "下一題"}</Button>
     </section>
   );
 }

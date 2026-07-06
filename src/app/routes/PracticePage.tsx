@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppScreen } from "../types";
 import {
   getQuizPreferences,
@@ -14,6 +14,7 @@ import {
   WeaknessSelectionPanel,
 } from "../../features/practice/components/WeaknessSelectionPanel";
 import { usePracticeSession } from "../../features/practice/hooks/usePracticeSession";
+import { getPracticeViewState } from "../../features/practice/practiceView";
 import { getQuestionTypesForTags } from "../../features/questions/templates";
 import type { QuestionType } from "../../features/questions/types";
 import { createHistoryEntry, prependHistoryEntry } from "../../features/results/history";
@@ -82,12 +83,34 @@ export function PracticePage() {
   const [quickPracticeType, setQuickPracticeType] = useState<QuestionType>("arithmetic");
   const [weaknessPrefillTags, setWeaknessPrefillTags] = useState<string[] | undefined>();
   const [answer, setAnswer] = useState("");
+  const draftAnswersRef = useRef<Record<number, string>>({});
   const practice = usePracticeSession(preferences);
 
   const weaknessData = useMemo(
     () => deriveWeaknessBreakdownFromHistory(history, preferences.difficulty),
     [history, preferences.difficulty],
   );
+
+  useEffect(() => {
+    if (!practice.session) {
+      return;
+    }
+
+    const viewState = getPracticeViewState(
+      practice.session,
+      practice.viewIndex,
+      practice.latestAttempt,
+    );
+
+    if (viewState.attempt) {
+      setAnswer(viewState.attempt.userAnswer);
+      return;
+    }
+
+    if (!viewState.isReviewing) {
+      setAnswer(draftAnswersRef.current[practice.viewIndex] ?? "");
+    }
+  }, [practice.viewIndex, practice.session, practice.latestAttempt]);
 
   useEffect(() => {
     if (!practice.session || practice.session.status !== "finished" || savedSessionIds.has(practice.session.id)) {
@@ -124,6 +147,7 @@ export function PracticePage() {
 
   function enterPractice(nextPreferences: PracticePreferences): void {
     const normalized = savePreferences(nextPreferences);
+    draftAnswersRef.current = {};
     setAnswer("");
     practice.start(normalized);
     setScreen("practice");
@@ -166,13 +190,39 @@ export function PracticePage() {
     });
   }
 
+  function handleAnswerChange(nextAnswer: string): void {
+    if (session && practice.viewIndex === session.currentIndex && practice.latestAttempt === undefined) {
+      draftAnswersRef.current[practice.viewIndex] = nextAnswer;
+    }
+
+    setAnswer(nextAnswer);
+  }
+
   function handleSubmit(): void {
     practice.submit(answer);
   }
 
-  function handleNext(): void {
-    practice.next();
+  function handleRevealAnswer(): void {
+    practice.reveal();
     setAnswer("");
+  }
+
+  function handlePrevious(): void {
+    practice.previous();
+  }
+
+  function handleNext(): void {
+    const isAdvancingCurrent =
+      session &&
+      practice.viewIndex === session.currentIndex &&
+      practice.latestAttempt !== undefined;
+
+    practice.next();
+
+    if (isAdvancingCurrent) {
+      delete draftAnswersRef.current[practice.viewIndex];
+      setAnswer("");
+    }
   }
 
   function handleRestartPractice(): void {
@@ -190,6 +240,7 @@ export function PracticePage() {
     }
 
     setAnswer("");
+    draftAnswersRef.current = {};
     practice.abandon();
     setScreen("home");
   }
@@ -200,10 +251,22 @@ export function PracticePage() {
 
   const latestHistory = history[0];
   const session = practice.session;
+  const practiceView = session
+    ? getPracticeViewState(session, practice.viewIndex, practice.latestAttempt)
+    : undefined;
   const isLastQuestion =
     session &&
+    practice.viewIndex === session.currentIndex &&
     practice.latestAttempt !== undefined &&
     session.attempts.length + 1 >= session.preferences.questionLimit;
+  const canGoPrevious = practice.viewIndex > 0;
+  const canRevealAnswer = practiceView
+    ? !practiceView.isReviewing && practiceView.attempt === undefined
+    : false;
+  const canGoNext = practiceView
+    ? practiceView.isReviewing || practiceView.attempt !== undefined
+    : false;
+  const nextLabel = isLastQuestion ? "查看統計" : "下一題";
 
   const allWeakTagKeys = weaknessData.breakdown.weakTags.map((metric) => metric.key);
 
@@ -260,30 +323,33 @@ export function PracticePage() {
               ) : (
                 <>
                   <QuestionCard
-                    key={session.currentIndex}
-                    currentIndex={session.currentIndex}
+                    key={`${session.currentIndex}-${practice.viewIndex}`}
+                    currentIndex={practice.viewIndex}
                     focusTags={
                       session.preferences.mode === "weakness-focused"
                         ? session.preferences.targetTags
                         : undefined
                     }
                     modeLabel={getPracticeModeLabel(session.preferences.mode)}
-                    question={session.currentQuestion}
+                    question={practiceView!.question}
                     totalQuestions={session.preferences.questionLimit}
                   />
                   <AnswerForm
                     answer={answer}
-                    disabled={practice.latestAttempt !== undefined}
-                    onAnswerChange={setAnswer}
+                    canGoNext={canGoNext}
+                    canGoPrevious={canGoPrevious}
+                    canRevealAnswer={canRevealAnswer}
+                    disabled={practiceView!.attempt !== undefined}
+                    nextLabel={nextLabel}
+                    onAnswerChange={handleAnswerChange}
+                    onNext={handleNext}
+                    onPrevious={handlePrevious}
+                    onRevealAnswer={handleRevealAnswer}
                     onSubmit={handleSubmit}
-                    question={session.currentQuestion}
+                    question={practiceView!.question}
                   />
-                  {practice.latestAttempt ? (
-                    <FeedbackPanel
-                      attempt={practice.latestAttempt}
-                      isLastQuestion={Boolean(isLastQuestion)}
-                      onNext={handleNext}
-                    />
+                  {practiceView!.attempt ? (
+                    <FeedbackPanel attempt={practiceView!.attempt} />
                   ) : null}
                 </>
               )}
@@ -309,7 +375,7 @@ export function PracticePage() {
                       <div>
                         <dt>目前題號</dt>
                         <dd>
-                          {session.currentIndex + 1} / {session.preferences.questionLimit}
+                          {practice.viewIndex + 1} / {session.preferences.questionLimit}
                         </dd>
                       </div>
                       <div>
@@ -350,14 +416,6 @@ export function PracticePage() {
               </Card>
             </aside>
           </div>
-
-          {session.status !== "finished" ? (
-            <div className={styles.mobileExitBar}>
-              <Button className={styles.mobileExitButton} onClick={handleGoHome} variant="secondary">
-                返回首頁
-              </Button>
-            </div>
-          ) : null}
         </section>
       ) : null}
     </main>

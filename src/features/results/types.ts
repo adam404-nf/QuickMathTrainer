@@ -9,6 +9,7 @@ export interface Attempt {
   userAnswer: string;
   correctAnswer: string;
   isCorrect: boolean;
+  revealed?: boolean;
   timeMs: number;
   createdAt: string;
 }

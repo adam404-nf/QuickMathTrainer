@@ -133,6 +133,16 @@
   grid-template-columns: 1fr auto;
 }
 
+.answerNav {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.answerNavButton {
+  width: 100%;
+}
+
 .answerInput {
   background: var(--color-muted-bg);
   border: 1px solid var(--color-border);
@@ -222,6 +232,18 @@
   color: var(--color-error);
 }
 
+.revealedFeedback {
+  animation: fadeSlideUp var(--motion-base) var(--ease-out) both;
+  background: var(--color-muted-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-foreground);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 1rem 1.15rem;
+}
+
 .feedbackBody {
   align-items: flex-start;
   display: flex;
@@ -241,7 +263,8 @@
 }
 
 .correctFeedback p,
-.wrongFeedback p {
+.wrongFeedback p,
+.revealedFeedback p {
   color: var(--color-muted);
   margin: 0.25rem 0 0;
 }
@@ -438,8 +461,13 @@
     grid-template-columns: 1fr;
   }
 
+  .answerNav {
+    grid-template-columns: 1fr;
+  }
+
   .correctFeedback,
-  .wrongFeedback {
+  .wrongFeedback,
+  .revealedFeedback {
     align-items: stretch;
     flex-direction: column;
   }
@@ -450,6 +478,7 @@
   .answerCard,
   .correctFeedback,
   .wrongFeedback,
+  .revealedFeedback,
   .summaryCard,
   .summaryGrid div {
     animation: none;
