@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import type { Question } from "../../questions/types";
+import { getAnswerFormatHint } from "../../questions/utils";
 import { Button } from "../../../shared/components/Button";
 import { Card } from "../../../shared/components/Card";
 import styles from "./PracticeComponents.module.css";
@@ -24,6 +25,7 @@ export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmi
   }
 
   const isMultipleChoice = question.kind === "multiple-choice" && question.options;
+  const answerFormatHint = !isMultipleChoice ? getAnswerFormatHint(question.answer) : undefined;
 
   return (
     <Card className={styles.answerCard}>
@@ -64,14 +66,20 @@ export function AnswerForm({ question, answer, disabled, onAnswerChange, onSubmi
             <label className={styles.answerLabel} htmlFor="answer">
               你的答案
             </label>
+            {answerFormatHint ? (
+              <p className={styles.answerHint} id="answer-format-hint">
+                {answerFormatHint}
+              </p>
+            ) : null}
             <div className={styles.answerRow}>
               <input
+                aria-describedby={answerFormatHint ? "answer-format-hint" : undefined}
                 autoComplete="off"
                 autoFocus
                 className={styles.answerInput}
                 disabled={disabled}
                 id="answer"
-                inputMode="decimal"
+                inputMode="text"
                 onChange={(event) => onAnswerChange(event.target.value)}
                 placeholder="輸入答案後按 Enter"
                 type="text"

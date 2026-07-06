@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAnswerCorrect, normalizeAnswer, parseNumericAnswer } from "./utils";
+import { getAnswerFormatHint, isAnswerCorrect, normalizeAnswer, parseNumericAnswer } from "./utils";
 
 describe("question answer utilities", () => {
   it("normalizes casing and whitespace", () => {
@@ -25,5 +25,13 @@ describe("question answer utilities", () => {
     expect(isAnswerCorrect("|A|", "|a|")).toBe(true);
     expect(isAnswerCorrect("a", "|a|")).toBe(false);
     expect(isAnswerCorrect("abs(a)", "|a|")).toBe(false);
+  });
+
+  it("describes the expected answer format for fill-in hints", () => {
+    expect(getAnswerFormatHint("42")).toBe("請輸入整數");
+    expect(getAnswerFormatHint("-7")).toBe("請輸入整數");
+    expect(getAnswerFormatHint("3/4")).toBe("請以分數形式作答（例如 3/4）");
+    expect(getAnswerFormatHint("0.5")).toBe("請輸入小數（例如 0.5）");
+    expect(getAnswerFormatHint("|x|")).toBe("請以絕對值形式作答（例如 |x|）");
   });
 });

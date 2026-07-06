@@ -24,6 +24,32 @@ export function isSymbolicAbsoluteAnswer(answer: string): boolean {
   return /^\|[a-z]\|$/.test(normalizeAnswer(answer));
 }
 
+function isFractionAnswer(answer: string): boolean {
+  return /^-?\d+\/-?\d+$/.test(normalizeAnswer(answer));
+}
+
+function isDecimalAnswer(answer: string): boolean {
+  return normalizeAnswer(answer).includes(".");
+}
+
+export function getAnswerFormatHint(expectedAnswer: string): string {
+  const trimmedAnswer = expectedAnswer.trim();
+
+  if (isSymbolicAbsoluteAnswer(trimmedAnswer)) {
+    return `請以絕對值形式作答（例如 ${trimmedAnswer}）`;
+  }
+
+  if (isFractionAnswer(trimmedAnswer)) {
+    return "請以分數形式作答（例如 3/4）";
+  }
+
+  if (isDecimalAnswer(trimmedAnswer)) {
+    return "請輸入小數（例如 0.5）";
+  }
+
+  return "請輸入整數";
+}
+
 export function parseNumericAnswer(answer: string): number | undefined {
   const normalized = normalizeAnswer(answer);
   const fractionMatch = normalized.match(/^(-?\d+)\/(-?\d+)$/);
