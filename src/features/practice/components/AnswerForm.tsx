@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useEffect, useRef, type FormEvent } from "react";
 import type { Question } from "../../questions/types";
 import { getAnswerFormatHint } from "../../questions/utils";
 import { Button } from "../../../shared/components/Button";
@@ -35,6 +35,19 @@ export function AnswerForm({
   onNext,
 }: AnswerFormProps) {
   const canSubmit = Boolean(answer.trim());
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wasDisabledRef = useRef(disabled);
+
+  const isMultipleChoice = question.kind === "multiple-choice" && question.options;
+  const answerFormatHint = !isMultipleChoice ? getAnswerFormatHint(question.answer) : undefined;
+
+  useEffect(() => {
+    if (wasDisabledRef.current && !disabled && !isMultipleChoice) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+
+    wasDisabledRef.current = disabled;
+  }, [disabled, isMultipleChoice]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -43,9 +56,6 @@ export function AnswerForm({
       onSubmit();
     }
   }
-
-  const isMultipleChoice = question.kind === "multiple-choice" && question.options;
-  const answerFormatHint = !isMultipleChoice ? getAnswerFormatHint(question.answer) : undefined;
 
   return (
     <Card className={styles.answerCard}>
@@ -130,6 +140,7 @@ export function AnswerForm({
                 inputMode="text"
                 onChange={(event) => onAnswerChange(event.target.value)}
                 placeholder="輸入答案後按 Enter"
+                ref={inputRef}
                 type="text"
                 value={answer}
               />

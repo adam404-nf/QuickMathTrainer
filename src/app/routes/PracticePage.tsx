@@ -33,7 +33,7 @@ import { Button } from "../../shared/components/Button";
 import { Card } from "../../shared/components/Card";
 import { createLocalStorageAdapter } from "../../shared/storage/localStorageAdapter";
 import { formatMilliseconds, formatPercent } from "../../shared/utils/format";
-import { confirmExitPractice } from "./practiceNavigation";
+import { confirmExitPractice, shouldIgnorePracticeNavigationShortcut } from "./practiceNavigation";
 import styles from "./PracticePage.module.css";
 
 const preferencesStorage = createLocalStorageAdapter<PracticePreferences>("quickmathowo.preferences.v1");
@@ -267,6 +267,32 @@ export function PracticePage() {
     ? practiceView.isReviewing || practiceView.attempt !== undefined
     : false;
   const nextLabel = isLastQuestion ? "查看統計" : "下一題";
+
+  useEffect(() => {
+    if (screen !== "practice" || !session || session.status === "finished") {
+      return;
+    }
+
+    function handlePracticeNavigationKeyDown(event: KeyboardEvent): void {
+      if (shouldIgnorePracticeNavigationShortcut(event.target)) {
+        return;
+      }
+
+      if (event.key === "ArrowLeft" && canGoPrevious) {
+        event.preventDefault();
+        handlePrevious();
+        return;
+      }
+
+      if (event.key === "ArrowRight" && canGoNext) {
+        event.preventDefault();
+        handleNext();
+      }
+    }
+
+    window.addEventListener("keydown", handlePracticeNavigationKeyDown);
+    return () => window.removeEventListener("keydown", handlePracticeNavigationKeyDown);
+  }, [screen, session, canGoPrevious, canGoNext, practice.viewIndex, practice.latestAttempt]);
 
   const allWeakTagKeys = weaknessData.breakdown.weakTags.map((metric) => metric.key);
 

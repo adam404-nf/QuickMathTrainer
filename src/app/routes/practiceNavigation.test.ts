@@ -4,6 +4,7 @@ import {
   EXIT_PRACTICE_CONFIRM_MESSAGE,
   confirmExitPractice,
   shouldConfirmExitPractice,
+  shouldIgnorePracticeNavigationShortcut,
 } from "./practiceNavigation";
 
 function makeActiveSession(attemptCount = 0, currentIndex = 0): PracticeSession {
@@ -75,5 +76,14 @@ describe("practiceNavigation", () => {
     const confirm = vi.fn(() => false);
 
     expect(confirmExitPractice(makeActiveSession(1), undefined, confirm)).toBe(false);
+  });
+
+  it("ignores navigation shortcuts while typing in editable fields", () => {
+    const input = document.createElement("input");
+    const textarea = document.createElement("textarea");
+
+    expect(shouldIgnorePracticeNavigationShortcut(input)).toBe(true);
+    expect(shouldIgnorePracticeNavigationShortcut(textarea)).toBe(true);
+    expect(shouldIgnorePracticeNavigationShortcut(document.createElement("div"))).toBe(false);
   });
 });
