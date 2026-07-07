@@ -2,10 +2,11 @@
 
 > 本文件是 QuickMath Trainer 心算成本（`mentalCost`）的**唯一設計規格**。實作對應：
 >
-> - `src/features/questions/calculationTemplates.ts` — 各 calculation template 的 baseCost 規則
-> - `src/features/questions/mentalCost.ts` — 難度加權選題分佈
-> - `src/features/questions/templates.ts` — 題目模板如何拆成 calculation templates
-> - `src/features/questions/registry.ts` — 依 bucket 重試生成
+> - [`src/features/questions/costModel.ts`](../src/features/questions/costModel.ts) — Atomic、IntegerChunk、FractionChunk 與壓縮常數
+> - [`src/features/questions/calculationTemplates.ts`](../src/features/questions/calculationTemplates.ts) — 題目模板到 cost tree 的適配層
+> - [`src/features/questions/mentalCost.ts`](../src/features/questions/mentalCost.ts) — 難度加權選題分佈（raw cost range）
+> - [`src/features/questions/templates.ts`](../src/features/questions/templates.ts) — 題目模板
+> - [`src/features/questions/registry.ts`](../src/features/questions/registry.ts) — 依 cost range 重試生成
 
 ---
 
@@ -13,462 +14,173 @@
 
 ### 1.1 Intrinsic（題目固有）
 
-同一道題的 `mentalCost` **只由題目內容決定**，與 UI 上的 `difficulty`（基礎 / 標準 / 挑戰）無關。
+同一道題的 `mentalCost` **只由題目內容決定**，與 UI 上的 `difficulty` 無關。
 
-| 題目 | easy | medium | hard |
-|------|------|--------|------|
-| `12 + 15 = ?` | **1** | **1** | **1** |
-| `47 + 68 = ?` | **2** | **2** | **2** |
+`difficulty` 只負責抽題時的 **cost range 分佈**，不會因模式標籤直接加價。
 
-`difficulty` 可以改變生成時的**數字範圍**（例如 hard 模式兩位數更大），但 cost 仍由**實際生成的數字與步驟**計算，不會因模式標籤而人工加價。
+### 1.2 分數尺度
 
-### 1.2 分數範圍
+`mentalCost` 為 **raw cost（可為小數）**，不再限制在 1–11。
+
+### 1.3 兩層模型
+
+| 層級 | 名稱 | 說明 |
+|------|------|------|
+| Layer 1 | **Atomic Operation** | 一位數加減乘除，cost = 1 |
+| Layer 2 | **Chunk** | 較高階技能；內部可展開為 Atomic 或子 Chunk，完成後封裝成 effective cost |
+
+整數四則收斂為單一 **IntegerChunk**（Atomic Expansion Helper），不拆成四個獨立 Chunk kind。
+
+分數四則收斂為單一 **FractionChunk**，內部使用 IntegerChunk 計算 LCM、擴分、分子運算、約分。
+
+---
+
+## 2. Atomic Operation
+
+### 2.1 基本規則
+
+- 一位數加法、減法、乘法、除法：cost = 1
+- 進位：每次視為一次一位數加法
+- 退位：每次視為一次一位數減法
+- 乘法：標準豎式；部分積相加依加法規則
+- 除法：長除法；每輪一位數除法、乘法、減法各計 atomic cost
+
+### 2.2 免費操作
 
 ```text
-MentalCost = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11
+a+0, 0+a, a-0, a×1, 1×a, a÷1  → cost = 0
+×10, ×100, ÷10, ÷100            → cost = 0（位值移動）
 ```
 
-最終分數經 `clamp(1, 11)` 保護，不作為主要計算策略。
+### 2.3 範例
 
-### 1.3 兩種「模板」
-
-| 名稱 | 說明 | 所在檔案 |
-|------|------|----------|
-| **Calculation Template** | 使用者心算時的一個獨立計算單元（一步運算） | `calculationTemplates.ts` |
-| **Question Template** | 出題引擎的題目形式（如「平方差」「分數複合」） | `templates.ts` |
-
-一道 Question Template 通常拆成 **1–3 個** Calculation Template，外加 **Working Memory** 成本。
+| 運算 | cost |
+|------|------|
+| `3+4` | 1 |
+| `25+36` | 3 |
+| `34-19` | 3 |
+| `8÷2` | 1 |
 
 ---
 
-## 2. 總公式
+## 3. Chunk 封裝
+
+### 3.1 IntegerChunk
+
+- `operation: add | subtract | multiply | divide`
+- `compressionConstant = 1.00`
+- 對外只暴露 effective cost
+
+### 3.2 FractionChunk
+
+分數加減（異分母）內部步驟：
 
 ```text
-mentalCost = Σ (各 calculation template 的 baseCost) + workingMemoryCost
-workingMemoryCost = max(0, templateCount − 1)
+LCMChunk
++ ExpandFractionChunk
++ IntegerChunk（分子加減）
++ FractionSimplificationChunk
+→ × FractionOperationConstant
 ```
 
-- **baseCost**：該單一步驟本身的心算負荷（進位、LCM、乘數大小等）。
-- **workingMemoryCost**：需在心中保留並轉移中間結果的次數；每多一個後續模板，通常多 +1。
+分數內部使用的整數運算會套用 `FRACTION_INTERNAL_INTEGER_FACTOR = 0.6`，避免分數題被算得過重。
 
-### 2.1 完整範例：`2 × (12 + 15)`
+異分母分數加減的 internal cost 下限為 `7`，再乘上對應的 Fraction constant。
 
-| 步驟 | Calculation Template | baseCost |
-|------|---------------------|----------|
-| 1 | 整數加法 `12 + 15` | 1 |
-| 2 | 整數乘法 `2 × 27` | 2 |
-| — | Working Memory（2 模板 − 1） | 1 |
-| **合計** | | **4** |
+### 3.3 Compression Constants（第一版）
+
+| Chunk kind | Constant |
+|---|---|
+| IntegerChunk | 1.00 |
+| ExpandFractionChunk | 0.30 |
+| GCDChunk | 0.35 |
+| FractionSimplificationChunk | 0.45 |
+| FractionAddChunk | 0.70 |
+| FractionSubtractChunk | 0.70 |
+| FractionMultiplyChunk | 0.55 |
+| FractionDivideChunk | 0.65 |
+| AbsoluteValueChunk | 0.80 |
+| PowerChunk / RootChunk | 0.75 |
+
+### 3.4 LCM 分級權重
+
+| LCM 範圍 | Tier multiplier |
+|---|---|
+| ≤ 12 | 0.40 |
+| 13–60 | 0.55 |
+| 61–120 | 0.75 |
+| 121–300 | 0.95 |
+| > 300 | 1.15 |
+
+### 3.5 兩位數乘法加成
+
+當 LCM 或 Expand 步驟涉及 **兩位數 × 兩位數** 時：
 
 ```text
-mentalCost = 1 + 2 + 1 = 4
+effectiveCost × 1.25
 ```
 
-### 2.2 避免重複計價
-
-- 單一步驟的複雜度 → 只計入**該模板**的 baseCost。
-- 多步驟的記憶負荷 → 只計入 **workingMemoryCost**。
-- LCM、進位、借位、abs、符號化簡 → 只影響**所在模板**，不作整題第二次加成。
-
 ---
 
-## 3. Calculation Template 一覽
+## 4. 多步驟題目
 
-以下共 **20 種** calculation template kind。每種列出 baseCost 分級與**可驗證範例**（與 `mentalCost.test.ts` 一致）。
-
----
-
-### 3.1 整數加法（`integer-add`）
-
-**適用**：`a + b`、括號內加法、`|a| + b` 的外層加法。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 進位少於 2 次 | `12 + 15` → **1**；`47 + 28` → **1**（僅個位進位） |
-| **2** | 進位 2 次或以上 | `47 + 68` → **2**；`89 + 76` → **2** |
-
-> 整數加法 baseCost 上限為 **2**。
-
----
-
-### 3.2 整數減法（`integer-subtract`）
-
-**適用**：`a − b`、平方差展開後的減法、`|a| − |b|` 的外層減法。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 借位少於 2 次 | `23 − 12` → **1**；`47 − 28` → **1**（僅個位借位） |
-| **2** | 借位 2 次或以上 | `150 − 87` → **2** |
-
-> 整數減法 baseCost 上限為 **2**。
-
----
-
-### 3.3 整數乘法（`integer-multiply`）
-
-**適用**：`a × b`、`2 × Ans`、小數題中的整數乘法部分。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 個位 × 個位 | `6 × 7` → **1** |
-| **2** | 個位 × 兩位數 | `14 × 6` → **2**；`19 × 7` → **2** |
-| **3** | 兩位數 × 兩位數（min < 20、max < 30） | `18 × 12` → **3** |
-| **4** | 兩位數 × 兩位數 | `37 × 12` → **4**；`42 × 18` → **4** |
-
----
-
-### 3.4 整數除法（`integer-divide`）
-
-**適用**：`dividend ÷ divisor`（整除題）。
-
-心算時以**除數**與**商**的位數分級，對應乘法中兩個因數的結構（`被除數 = 除數 × 商`）。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 個位 ÷ 個位（除數、商皆為個位） | `16 ÷ 4` → **1** |
-| **2** | 個位 ÷ 兩位數 或 兩位數 ÷ 個位 | `84 ÷ 12` → **2** |
-| **3** | 兩位數 ÷ 兩位數（min < 20、max < 30） | `168 ÷ 12` → **3** |
-| **4** | 兩位數 ÷ 兩位數 | `720 ÷ 36` → **4** |
-
----
-
-### 3.5 絕對值（`absolute-value`）
-
-**適用**：`|-n|` 或內部表達式已算出後取 `|Ans|`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 一律 | `|-8|` → **1**；`|1/6|`（通分後）→ **1** |
-
-> 若內部是 `1/2 − 1/3` 這類表達式，通分與減法各自是獨立 template；abs 本身不加高。
-
----
-
-### 3.6 平方（`square`）
-
-**適用**：`n²`、`|n|²` 中的平方部分。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | n ≤ 12 | `6² = 36` → **1** |
-| **2** | 13 ≤ n ≤ 20 | `19² = 361` → **2** |
-| **3** | 21 ≤ n ≤ 25 | `23² = 529` → **3** |
-| **4** | n > 25（預留） | — |
-
----
-
-### 3.7 平方根（`square-root`）
-
-**適用**：`√n`、`√((signed)²)` 中的根號辨識。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 根值 ≤ 10 | `√64 = 8` → **1** |
-| **2** | 根值 ≤ 16 | `√196 = 14` → **2** |
-| **3** | 根值 > 16 | `√576 = 24` → **3** |
-
-**複合範例** `√((−7)²)`：
-
-| 模板 | baseCost |
-|------|----------|
-| 平方根（radicand = 49） | 1 |
-| 絕對值 | 1 |
-| Working Memory | 1 |
-| **合計** | **3** |
-
----
-
-### 3.8 立方（`cube`）
-
-**適用**：`n³`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **2** | n ≤ 5 | `5³ = 125` → **2** |
-| **3** | n ≥ 6 | `6³ = 216` → **3** |
-
----
-
-### 3.9 四次方（`fourth-power`）
-
-**適用**：`n⁴`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **3** | n ≤ 4 | `4⁴ = 256` → **3** |
-| **4** | n ≥ 5 | `5⁴ = 625` → **4** |
-
----
-
-### 3.10 三次方根（`cube-root`）
-
-**適用**：`∛n`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **2** | 根值 ≤ 4 | `∛64 = 4` → **2** |
-| **3** | 根值 ≥ 5 | `∛216 = 6` → **3** |
-
----
-
-### 3.11 四次方根（`fourth-root`）
-
-**適用**：`⁴√n`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **2** | 根值 ≤ 4 | `⁴√16 = 2` → **2** |
-| **3** | 根值 ≥ 5 | `⁴√625 = 5` → **3** |
-
----
-
-### 3.12 符號化簡（`symbolic-simplify`）
-
-**適用**：`√(x²) = |x|` 等符號題。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **4** | 單一符號變數 | `√(x²) = |x|` → **4** |
-| **5** | 嵌套式子（預留） | `√((x+a)²)` → **5** |
-
----
-
-### 3.13 同分母分數加減（`fraction-same-denom`）
-
-**適用**：`a/d + b/d`、`a/d − b/d`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 分母 ≤ 6、不需約分 | `1/4 + 2/4` → **1** |
-| **2** | 分母 8–12 或需約分 | `3/8 + 1/8` → **2** |
-| **3** | 分子運算後明顯約分或假分數 | — |
-
----
-
-### 3.14 異分母通分加減（`fraction-unlike-denom`）
-
-**適用**：`a/b ± c/d` 且 `b ≠ d`。
-
-| baseCost | LCM 範圍 | 範例 |
-|----------|----------|------|
-| **3** | LCM ≤ 12 | `1/2 + 1/3`（LCM = 6）→ **3** |
-| **4** | 13 ≤ LCM ≤ 60 | `5/6 − 1/4`（LCM = 12）→ **3*** |
-| **5** | 61 ≤ LCM ≤ 84 | `1/7 + 1/12`（LCM = 84）→ **5** |
-| **6** | 85 ≤ LCM ≤ 100 | `1/7 + 1/13`（LCM = 91）→ **6** |
-| **0** | LCM > 100 | **重抽，不生成** |
-
-> *`5/6 − 1/4` 的 LCM = 12，baseCost = 3。
-
-LCM 只決定**通分這一步**的 baseCost，不作整題額外加分。
-
----
-
-### 3.15 分數乘法（`fraction-multiply`）
-
-**適用**：`a/b × c/d`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **2** | 可明顯交叉約分或乘積很小 | `2/5 × 5/7` → **2** |
-| **3** | 需先乘後約分 | `2/3 × 5/7` → **3** |
-| **4** | 分子分母較大、約分不明顯 | `7/9 × 8/11` → **4** |
-
----
-
-### 3.16 分數除法（`fraction-divide`）
-
-**適用**：`a/b ÷ c/d`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **3** | 倒數後可明顯約分 | `2/3 ÷ 2/5` → **3** |
-| **4** | 倒數後需乘法與約分 | `3/4 ÷ 2/5` → **4** |
-| **5** | 數字較大、約分不明顯 | `5/7 ÷ 3/8` → **5** |
-
----
-
-### 3.17 分數轉小數（`fraction-to-decimal`）
-
-**適用**：`a/b = ?`（小數答案）。
-
-| baseCost | 分母 | 範例 |
-|----------|------|------|
-| **1** | 2、4、5、10 | `1/4 = 0.25` → **1** |
-| **2** | 8、20、25 等 | `3/8 = 0.375` → **2** |
-| **3** | 6、12 等需判斷 | `5/12`（若設計為有限小數才生成）→ **3** |
-
----
-
-### 3.18 小數加法（`decimal-add`）
-
-**適用**：`0.x + 0.y`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 一位小數、和不跨 1 | `0.3 + 0.4 = 0.7` → **1** |
-| **2** | 需補位或跨整數 | `0.7 + 0.6 = 1.3` → **2** |
-
----
-
-### 3.19 小數減法（`decimal-subtract`）
-
-**適用**：`whole − 0.x`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **1** | 簡單一位小數 | `0.8 − 0.3` → **1** |
-| **2** | 整數減小數、需借位 | `5 − 0.3 = 4.7` → **2** |
-
----
-
-### 3.20 小數乘整數（`decimal-multiply`）
-
-**適用**：`0.x × n`。
-
-| baseCost | 條件 | 範例 |
-|----------|------|------|
-| **2** | 結果可表示為一位小數 | `0.4 × 6 = 2.4` → **2** |
-| **3** | 結果需處理進位或兩位小數 | `0.7 × 6 = 4.2`（邊界）→ **2**；`0.35 × 7` → **3** |
-
----
-
-## 4. Question Template 拆分對照（32 個）
-
-以下對應 `templates.ts` 中現有題目模板：每個模板拆成哪些 calculation template，以及一個**具體驗證範例**的整題 `mentalCost`。
-
-### 4.1 Arithmetic（9 個）
-
-| # | 題目模板 | 驗證範例 | 拆分 | 各 baseCost | WM | **mentalCost** |
-|---|----------|----------|------|-------------|-----|----------------|
-| 1 | `base × partner` | `14 × 6` | 乘法 ×1 | 2 | 0 | **2** |
-| 2 | `left + right` | `12 + 15` | 加法 ×1 | 1 | 0 | **1** |
-| 3 | `dividend ÷ divisor` | `84 ÷ 12` | 除法 ×1 | 2 | 0 | **2** |
-| 4 | `(a + b) × c` | `2 × (12 + 15)` | 加法 + 乘法 | 1 + 2 | 1 | **4** |
-| 5 | `(a × b) + c` | `(14 × 6) + 8` | 乘法 + 加法 | 2 + 1 | 1 | **4** |
-| 6 | `a² − b²` | `23² − 17²` | 平方 + 平方 + 減法 | 3 + 2 + 1 | 2 | **8** |
-| 7 | `(a + b)(a − b)` | `(25 + 15)(25 − 15)` | 加法 + 減法 + 乘法 | 1 + 1 + 4 | 2 | **8** |
-| 8 | `\|a\| + b × c` | `\|−8\| + 3 × 7` | abs + 乘法 + 加法 | 1 + 1 + 1 | 2 | **5** |
-| 9 | `\|a\| − \|b\|` | `\|−8\| − \|−3\|` | abs + abs + 減法 | 1 + 1 + 1 | 2 | **5** |
-
-### 4.2 Powers（10 個）
-
-| # | 題目模板 | 驗證範例 | 拆分 | 各 baseCost | WM | **mentalCost** |
-|---|----------|----------|------|-------------|-----|----------------|
-| 10 | `value²` | `12²` | 平方 ×1 | 1 | 0 | **1** |
-| 11 | `√radicand` | `√196` | 平方根 ×1 | 2 | 0 | **2** |
-| 12 | `base³` | `5³` | 立方 ×1 | 2 | 0 | **2** |
-| 13 | `base⁴` | `4⁴` | 四次方 ×1 | 3 | 0 | **3** |
-| 14 | `∛radicand` | `∛64` | 三次方根 ×1 | 2 | 0 | **2** |
-| 15 | `⁴√radicand` | `⁴√16` | 四次方根 ×1 | 2 | 0 | **2** |
-| 16 | `√((signed)²)` | `√((−7)²)` | 平方根 + abs | 1 + 1 | 1 | **3** |
-| 17 | `√(variable²)` | `√(x²)` | 符號化簡 ×1 | 4 | 0 | **4** |
-| 18 | `\|a\|²` | `\|−7\|²` | abs + 平方 | 1 + 1 | 1 | **3** |
-| 19 | `\|a\| + b` | `\|−5\| + 3` | abs + 加法 | 1 + 1 | 1 | **3** |
-
-### 4.3 Fractions / Decimals（13 個）
-
-| # | 題目模板 | 驗證範例 | 拆分 | 各 baseCost | WM | **mentalCost** |
-|---|----------|----------|------|-------------|-----|----------------|
-| 20 | 同分母加法 | `1/4 + 2/4` | 同分母 ×1 | 1 | 0 | **1** |
-| 21 | 異分母加法 | `1/2 + 1/3` | 通分 ×1 | 3 | 0 | **3** |
-| 22 | 異分母減法 | `5/6 − 1/4` | 通分 ×1 | 3 | 0 | **3** |
-| 23 | 分數乘法 | `2/3 × 5/7` | 分數乘法 ×1 | 3 | 0 | **3** |
-| 24 | 分數除法 | `3/4 ÷ 2/5` | 分數除法 ×1 | 4 | 0 | **4** |
-| 25 | 2 步分數複合 | `(1/2 + 1/3) × 2/5` | 通分 + 乘法 | 3 + 2 | 1 | **6** |
-| 26 | 3 步分數複合 | （三步鏈） | 通分 + 乘法 + 通分 | 3 + 2 + 3 | 2 | **10** |
-| 27 | `\|a/b − c/d\|` | `\|1/2 − 1/3\|` | 通分 + abs | 3 + 1 | 1 | **5** |
-| 28 | `\|a/b − c/d\| ± e/f` | `\|2/3 − 1/4\| + 1/6` | 通分 + abs + 通分 | 3 + 1 + 3 | 2 | **9** |
-| 29 | 分數轉小數 | `1/4 = ?` | 分數轉小數 ×1 | 1 | 0 | **1** |
-| 30 | 小數加法 | `0.3 + 0.4` | 小數加法 ×1 | 1 | 0 | **1** |
-| 31 | 小數乘整數 | `0.4 × 6` | 小數乘整數 ×1 | 2 | 0 | **2** |
-| 32 | 小數減法 | `5 − 0.3` | 小數減法 ×1 | 2 | 0 | **2** |
-
-> 分數複合題（#25–28）的 `calculationTemplates` 由 `fractionMath.ts` 的 `calculationTemplatesForExpr()` 依運算樹自動拆分。
-
----
-
-## 5. Difficulty 的新角色：加權選題，不計價
-
-`difficulty` **不再**直接改寫題目的 `mentalCost`，而是決定「這次要先抽哪個 cost bucket」。
-
-### 5.1 加權分佈
-
-| UI 難度 | mentalCost 分佈 | 設計意圖 |
-|---------|-----------------|----------|
-| **基礎** easy | 10%：**3**、70%：**5–6**、20%：**7** | 主力 5–6；少量送分（3）與拉伸（7） |
-| **標準** medium | 15%：**7**、75%：**8–9**、10%：**10** | 主力 8–9；少量 7 作節奏、10 作挑戰 |
-| **挑戰** hard | 20%：**9**、80%：**10–11** | 主力 10–11；少量 9 作節奏 |
-
-### 5.2 生成流程
+一道題若包含多個 Chunk，總 cost 為各 Chunk effective cost 之和，再加上多步驟協調成本：
 
 ```text
-選 difficulty
-  → pickTargetMentalCostBucket() 抽目標 bucket
-  → 隨機選題型 / 模板，生成候選題
-  → 計算 intrinsic mentalCost
-  → 符合 bucket？→ 回傳
-  → 不符合 → 重試（最多 100 次）
-  → 仍失敗 → fallback 到同 difficulty 的其他 bucket
-```
-
-### 5.3 模式差異
-
-| 模式 | bucket 匹配 |
-|------|-------------|
-| **mixed**（混合練習） | 嚴格依 bucket 分佈 |
-| **arithmetic / powers / fractions**（單一題型） | 不強制 bucket，優先出該題型 |
-| **weakness-focused**（弱點強化，有 targetTags） | 優先符合標籤，不強制 bucket |
-
-### 5.4 與數字範圍的分工
-
-| 機制 | 負責什麼 |
-|------|----------|
-| `mentalCost` | 題目由哪些計算模板組成、每步多難、需記多少中間結果 |
-| 模板內 `randomInt` 範圍（依 difficulty） | 同模板在不同模式下數字可更大，但 cost 仍由實際數字決定 |
-| bucket 分佈 | 決定「這次要找哪個 cost 的題」，不改寫題目 cost |
-
----
-
-## 6. 實作 API 速查
-
-```typescript
-// 計算整題 mentalCost
-calculateMentalCost(templates: CalculationTemplateSpec[]): MentalCost
-
-// 除錯用：列出各模板 baseCost 與 working memory
-describeMentalCost(templates): {
-  templates, baseCosts, workingMemoryCost, mentalCost
-}
-
-// 選題分佈
-pickTargetMentalCostBucket(difficulty): MentalCostBucket
-matchesMentalCostBucket(cost, bucket): boolean
-```
-
-題目模板中的簡寫：
-
-```typescript
-function mc(...templates: CalculationTemplateSpec[]): MentalCost {
-  return calculateMentalCost(templates);
-}
+questionCost = Σ chunkCost + max(0, stepCount - 1) × 1
 ```
 
 ---
 
-## 7. 測試覆蓋
+## 5. Difficulty 與 Cost Range（高中生水平）
 
-`src/features/questions/mentalCost.test.ts` 以 table-driven 方式驗證：
+**所有題型共用同一套** difficulty cost range。各題型之間的難度差異已由 Chunk constant（見 `costModel.ts`）校準到同一條 mental-cost 尺度上，因此難度範圍不再依題型分開，否則會把「題型難度」重複計算兩次（一次在 cost、一次在 range）。
 
-- 全部 20 種 calculation template 至少 1 個 baseCost 範例
-- 全部 32 個 question template 至少 1 個整題 mentalCost 範例
-- `12 + 15`、`47 + 68` 的 intrinsic 不變性
-- easy / medium / hard 加權分佈統計（各 300 題樣本）
+| difficulty | cost range |
+|---|---|
+| easy | **8–15** |
+| medium | **12–20** |
+| hard | **15–30** |
 
-測試失敗時，`assertMentalCost` 會輸出：模板列表、各 baseCost、workingMemoryCost、最終 mentalCost。
+> 全域範圍定義於 `mentalCost.ts` 的 `DIFFICULTY_COST_RANGES` 與 `costRangeForDifficulty()`。
+
+所有模式（arithmetic / fractions / powers / mixed / weakness-focused）皆**強制**題目 cost 落在該難度的 range 內才可使用，**任何情況都不得放寬 difficulty range**。
+
+powers 等天生 cost 偏低的題型（平方、根號以記憶提取為主），透過**多步冪次複合題**（如 `a² + b²`、`a² + c`）以較大的 base 與多步驟協調成本（見 §4 的 `max(0, stepCount - 1) × 1`）把 cost 抬升進入與其他題型相同的 range，而不是替 powers 另設一套較低的範圍。
+
+### 5.1 生成策略
+
+1. 抽 difficulty → 取得**全域** target cost range（不分題型）。
+2. 生成 base template → 計算 cost。
+3. cost 在 range 內 → 使用題目。
+4. cost 太低 → 持續追加 compatible template（整數／分數／冪次步驟），直到 cost 進入 range；步驟數量沒有硬性上限。
+5. cost 太高 → **保留 template 結構、重抽較小的數字**，讓 cost 落回範圍（而非放寬 range）。
+6. 同一 template 重試 N 次仍失敗 → 換另一個 template 再試；**在任何步驟都不得放寬 difficulty range**。
+
+### 5.2 題型數量上限（mixed / weakness-focused）
+
+為避免高 cost 題型（如分數）壟斷整份練習，混合模式下每個題型有數量上限：
+
+```text
+cap = ceil(questionLimit / eligibleTypeCount) + 1
+```
+
+例如 10 題、3 種題型 → 每題型最多 5 題。session 透過 `context.typeCounts` 與 `context.questionLimit` 傳入已出題數，registry 會排除已達上限的題型。
 
 ---
 
-## 8. 相關文件
+## 6. 實作備註
 
-- [04-system-design.md](./04-system-design.md) — 系統模組與題目生成原則
-- [07-frontend-architecture.md](./07-frontend-architecture.md) — Question Engine 架構與資料流
+- `calculationTemplates.ts` 保留 `CalculationTemplateSpec` 作為題目模板適配層，內部轉換為 `CostNode` 後交由 `costModel.ts` 計算。
+- `fractionMath.ts` 的 `costNodesForExpr()` 會把分數 expression tree 轉成 cost tree。
+- LCM > 100 的異分母題仍拒絕生成（`LCM_HARD_CAP`）。
+
+---
+
+## 7. 驗證基準（`mentalCost.test.ts`）
+
+- Atomic：`3+4`、`25+36`、`34-19`
+- Fraction：`1/2+1/3` 落在 easy 範圍；大 LCM 分數加減明顯高於簡單題
+- 生成：各難度產題 cost 大部分落在「該題型 × 該難度」的 range
+- 單一題型 hard 模式不會出現低於下限的簡單題（arithmetic ≥ 15、fractions ≥ 16）
+- mixed 模式下已達上限的題型不會再出題

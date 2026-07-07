@@ -212,23 +212,6 @@ export function answerFromEval(value: Fraction | number): string {
   return typeof value === "number" ? String(value) : formatFraction(value);
 }
 
-function fractionBinaryTemplate(
-  op: BinaryOp,
-  left: Fraction,
-  right: Fraction,
-): CalculationTemplateSpec {
-  if ((op === "+" || op === "−") && left.den === right.den) {
-    return { kind: "fraction-same-denom", denominator: left.den };
-  }
-  if (op === "+" || op === "−") {
-    return { kind: "fraction-unlike-denom", left, right };
-  }
-  if (op === "×") {
-    return { kind: "fraction-multiply", left, right };
-  }
-  return { kind: "fraction-divide", left, right };
-}
-
 function fractionFromExprNode(node: ExprNode): Fraction {
   if (node.kind === "fraction") {
     return node.value;
@@ -243,22 +226,51 @@ function fractionFromExprNode(node: ExprNode): Fraction {
 }
 
 export function calculationTemplatesForExpr(node: ExprNode): CalculationTemplateSpec[] {
+  return costNodesForExpr(node).map(costNodeToCalculationTemplate);
+}
+
+export function costNodesForExpr(node: ExprNode): import("./costModel").CostNode[] {
   if (node.kind === "fraction" || node.kind === "integer") {
     return [];
   }
 
   if (node.kind === "abs") {
-    return [...calculationTemplatesForExpr(node.inner), { kind: "absolute-value" }];
+    return [...costNodesForExpr(node.inner), { kind: "absolute-value" }];
   }
 
   const leftFraction = fractionFromExprNode(node.left);
   const rightFraction = fractionFromExprNode(node.right);
+  const opMap = { "+": "add", "−": "subtract", "×": "multiply", "÷": "divide" } as const;
 
   return [
-    ...calculationTemplatesForExpr(node.left),
-    ...calculationTemplatesForExpr(node.right),
-    fractionBinaryTemplate(node.op, leftFraction, rightFraction),
+    ...costNodesForExpr(node.left),
+    ...costNodesForExpr(node.right),
+    {
+      kind: "fraction",
+      operation: opMap[node.op],
+      left: leftFraction,
+      right: rightFraction,
+    },
   ];
+}
+
+function costNodeToCalculationTemplate(node: import("./costModel").CostNode): CalculationTemplateSpec {
+  if (node.kind === "absolute-value") {
+    return { kind: "absolute-value" };
+  }
+  if (node.kind === "fraction") {
+    if (node.operation === "add" && node.left.den === node.right.den) {
+      return { kind: "fraction-same-denom", denominator: node.left.den };
+    }
+    if (node.operation === "add" || node.operation === "subtract") {
+      return { kind: "fraction-unlike-denom", left: node.left, right: node.right };
+    }
+    if (node.operation === "multiply") {
+      return { kind: "fraction-multiply", left: node.left, right: node.right };
+    }
+    return { kind: "fraction-divide", left: node.left, right: node.right };
+  }
+  return { kind: "integer-add", a: 0, b: 0 };
 }
 
 const FRACTION_OPS: BinaryOp[] = ["+", "−", "×", "÷"];

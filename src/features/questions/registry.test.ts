@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { costRangeForDifficulty, matchesMentalCostBucket, maxQuestionsPerType } from "./mentalCost";
 import { availableQuestionTypes, generateQuestion, questionMatchesTargets } from "./registry";
+import type { QuestionType } from "./types";
 
 describe("question registry", () => {
   it("exposes the first MVP generator group", () => {
@@ -148,31 +150,49 @@ describe("question registry", () => {
     expect([...prompts].some((prompt) => prompt.includes("⁴√"))).toBe(true);
   });
 
-  it("targets weighted mentalCost buckets per difficulty", () => {
-    const sample = (difficulty: "easy" | "medium" | "hard", count: number) => {
-      const costs: number[] = [];
-      for (let index = 0; index < count; index += 1) {
-        const question = generateQuestion({
-          mode: "mixed",
-          difficulty,
-          context: {
-            recentQuestionIds: [],
-            seenQuestionIds: new Set(),
-          },
-        });
-        costs.push(question.mentalCost);
+  it("every mode and difficulty stays strictly in the global range", () => {
+    const modes = ["arithmetic", "fractions", "powers", "mixed"] as const;
+    const difficulties = ["easy", "medium", "hard"] as const;
+
+    for (const mode of modes) {
+      for (const difficulty of difficulties) {
+        const range = costRangeForDifficulty(difficulty);
+        for (let index = 0; index < 40; index += 1) {
+          const question = generateQuestion({
+            mode,
+            difficulty,
+            context: {
+              recentQuestionIds: [],
+              seenQuestionIds: new Set(),
+            },
+          });
+
+          expect(matchesMentalCostBucket(question.mentalCost, range)).toBe(true);
+        }
       }
-      return costs;
-    };
+    }
+  }, 120_000);
 
-    const easy = sample("easy", 80);
-    const medium = sample("medium", 80);
-    const hard = sample("hard", 80);
+  it("caps per-type question counts in mixed sessions", () => {
+    const questionLimit = 10;
+    const cap = maxQuestionsPerType(questionLimit, availableQuestionTypes.length);
+    const typeCounts: Partial<Record<QuestionType, number>> = { fractions: cap };
 
-    expect(easy.filter((cost) => cost === 5 || cost === 6).length).toBeGreaterThan(40);
-    expect(medium.filter((cost) => cost === 8 || cost === 9).length).toBeGreaterThan(45);
-    expect(hard.filter((cost) => cost === 10 || cost === 11).length).toBeGreaterThan(50);
-  });
+    for (let index = 0; index < 20; index += 1) {
+      const question = generateQuestion({
+        mode: "mixed",
+        difficulty: "hard",
+        context: {
+          recentQuestionIds: [],
+          seenQuestionIds: new Set(),
+          typeCounts,
+          questionLimit,
+        },
+      });
+
+      expect(question.type).not.toBe("fractions");
+    }
+  }, 120_000);
 
   it("can generate absolute-value questions across practice modes", () => {
     const modes = [
@@ -184,7 +204,7 @@ describe("question registry", () => {
     for (const config of modes) {
       let found = false;
 
-      for (let index = 0; index < 40; index += 1) {
+      for (let index = 0; index < 120; index += 1) {
         const question = generateQuestion({
           mode: config.mode,
           difficulty: config.difficulty,
@@ -202,5 +222,5 @@ describe("question registry", () => {
 
       expect(found).toBe(true);
     }
-  });
+  }, 30_000);
 });

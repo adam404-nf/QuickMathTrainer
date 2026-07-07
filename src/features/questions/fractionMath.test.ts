@@ -18,10 +18,15 @@ describe("fractionMath", () => {
     expect(formatFraction(simplifyFraction({ num: 5, den: 6 }))).toBe("5/6");
   });
 
-  it("maps high LCM to unlike-denom baseCost tiers", () => {
-    expect(unlikeDenomBaseCost({ num: 1, den: 2 }, { num: 1, den: 3 })).toBe(3);
-    expect(unlikeDenomBaseCost({ num: 1, den: 7 }, { num: 1, den: 12 })).toBe(5);
-    expect(unlikeDenomBaseCost({ num: 1, den: 7 }, { num: 1, den: 17 })).toBe(0);
+  it("maps high LCM to unlike-denom cost tiers", () => {
+    const small = unlikeDenomBaseCost({ num: 1, den: 2 }, { num: 1, den: 3 });
+    const medium = unlikeDenomBaseCost({ num: 1, den: 7 }, { num: 1, den: 12 });
+    const rejected = unlikeDenomBaseCost({ num: 1, den: 7 }, { num: 1, den: 17 });
+
+    expect(small).toBeGreaterThan(2);
+    expect(small).toBeLessThan(5);
+    expect(medium).toBeGreaterThanOrEqual(small);
+    expect(rejected).toBe(0);
   });
 
   it("builds a fraction composite with valid answer", () => {

@@ -1,5 +1,5 @@
 import { generateQuestion } from "../questions/registry";
-import type { GenerateQuestionInput } from "../questions/types";
+import type { GenerateQuestionInput, QuestionType } from "../questions/types";
 import { isAnswerCorrect } from "../questions/utils";
 import type { PracticePreferences } from "../settings/types";
 import type { Attempt } from "../results/types";
@@ -17,6 +17,23 @@ function getSeenQuestionIds(attempts: readonly Attempt[], currentQuestionId?: st
   }
 
   return new Set(ids);
+}
+
+function getTypeCounts(
+  attempts: readonly Attempt[],
+  currentQuestionType?: QuestionType,
+): Partial<Record<QuestionType, number>> {
+  const counts: Partial<Record<QuestionType, number>> = {};
+
+  for (const attempt of attempts) {
+    counts[attempt.questionType] = (counts[attempt.questionType] ?? 0) + 1;
+  }
+
+  if (currentQuestionType) {
+    counts[currentQuestionType] = (counts[currentQuestionType] ?? 0) + 1;
+  }
+
+  return counts;
 }
 
 function buildGenerateInput(
@@ -38,6 +55,8 @@ export function createPracticeSession(preferences: PracticePreferences): Practic
     buildGenerateInput(preferences, {
       recentQuestionIds: [],
       seenQuestionIds: new Set(),
+      typeCounts: {},
+      questionLimit: preferences.questionLimit,
     }),
   );
 
@@ -101,6 +120,8 @@ export function advanceSession(session: PracticeSession, attempt: Attempt): Prac
     buildGenerateInput(session.preferences, {
       recentQuestionIds: attempts.slice(-5).map((item) => item.questionId),
       seenQuestionIds: getSeenQuestionIds(attempts, session.currentQuestion.id),
+      typeCounts: getTypeCounts(attempts),
+      questionLimit: session.preferences.questionLimit,
     }),
   );
 

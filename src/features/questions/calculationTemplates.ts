@@ -1,5 +1,13 @@
+import {
+  calculateCost,
+  calculateQuestionCost,
+  describeCost,
+  type CostNode,
+  type FractionOperation,
+  type IntegerOperation,
+} from "./costModel";
 import type { Fraction } from "./fractionMath";
-import { lcm as fractionLcm } from "./fractionMath";
+import { lcm } from "./fractionMath";
 import type { MentalCost } from "./types";
 
 export type CalculationTemplateKind =
@@ -46,251 +54,211 @@ export type CalculationTemplateSpec =
   | { kind: "decimal-subtract"; whole: number; fraction: number }
   | { kind: "decimal-multiply"; decimal: number; integer: number };
 
-function countAdditionCarries(a: number, b: number): number {
-  let carries = 0;
-  let carry = 0;
-  let remainingA = Math.abs(a);
-  let remainingB = Math.abs(b);
-
-  while (remainingA > 0 || remainingB > 0 || carry > 0) {
-    const digitA = remainingA % 10;
-    const digitB = remainingB % 10;
-    const sum = digitA + digitB + carry;
-    if (sum >= 10) {
-      carries += 1;
-    }
-    carry = sum >= 10 ? 1 : 0;
-    remainingA = Math.floor(remainingA / 10);
-    remainingB = Math.floor(remainingB / 10);
+export function costNodeFromCalculationTemplate(spec: CalculationTemplateSpec): CostNode {
+  switch (spec.kind) {
+    case "integer-add":
+      return { kind: "integer", operation: "add", a: spec.a, b: spec.b };
+    case "integer-subtract":
+      return { kind: "integer", operation: "subtract", a: spec.a, b: spec.b };
+    case "integer-multiply":
+      return { kind: "integer", operation: "multiply", a: spec.a, b: spec.b };
+    case "integer-divide":
+      return { kind: "integer", operation: "divide", a: spec.dividend, b: spec.divisor };
+    case "absolute-value":
+      return { kind: "absolute-value" };
+    case "square":
+      return { kind: "power", n: spec.n, exponent: 2 };
+    case "square-root":
+      return { kind: "root", radicand: spec.radicand, degree: 2 };
+    case "cube":
+      return { kind: "power", n: spec.n, exponent: 3 };
+    case "fourth-power":
+      return { kind: "power", n: spec.n, exponent: 4 };
+    case "cube-root":
+      return { kind: "root", radicand: spec.root ** 3, degree: 3 };
+    case "fourth-root":
+      return { kind: "root", radicand: spec.root ** 4, degree: 4 };
+    case "symbolic-simplify":
+      return { kind: "symbolic-simplify" };
+    case "fraction-same-denom":
+      return {
+        kind: "fraction",
+        operation: "add",
+        left: { num: 1, den: spec.denominator },
+        right: { num: 1, den: spec.denominator },
+      };
+    case "fraction-unlike-denom":
+      return { kind: "fraction", operation: "add", left: spec.left, right: spec.right };
+    case "fraction-multiply":
+      return { kind: "fraction", operation: "multiply", left: spec.left, right: spec.right };
+    case "fraction-divide":
+      return { kind: "fraction", operation: "divide", left: spec.left, right: spec.right };
+    case "fraction-to-decimal":
+      return { kind: "integer", operation: "divide", a: 1, b: spec.denominator };
+    case "decimal-add":
+      return { kind: "integer", operation: "add", a: Math.round(spec.left * 10), b: Math.round(spec.right * 10) };
+    case "decimal-subtract":
+      return {
+        kind: "integer",
+        operation: "subtract",
+        a: Math.round(spec.whole * 10),
+        b: Math.round(spec.fraction * 10),
+      };
+    case "decimal-multiply":
+      return {
+        kind: "integer",
+        operation: "multiply",
+        a: Math.round(spec.decimal * 10),
+        b: spec.integer,
+      };
+    default:
+      return { kind: "integer", operation: "add", a: 1, b: 1 };
   }
-
-  return carries;
 }
 
-function countSubtractionBorrows(a: number, b: number): number {
-  let borrows = 0;
-  let borrow = 0;
-  let remainingA = Math.abs(a);
-  let remainingB = Math.abs(b);
-
-  while (remainingA > 0 || remainingB > 0) {
-    const digitA = (remainingA % 10) - borrow;
-    const digitB = remainingB % 10;
-    if (digitA < digitB) {
-      borrows += 1;
-      borrow = 1;
-    } else {
-      borrow = 0;
-    }
-    remainingA = Math.floor(remainingA / 10);
-    remainingB = Math.floor(remainingB / 10);
-  }
-
-  return borrows;
-}
-
-export function integerAddBaseCost(a: number, b: number): number {
-  return countAdditionCarries(a, b) >= 2 ? 2 : 1;
-}
-
-export function integerSubtractBaseCost(a: number, b: number): number {
-  return countSubtractionBorrows(a, b) >= 2 ? 2 : 1;
-}
-
-function pairOperandBaseCost(absA: number, absB: number): number {
-  const max = Math.max(absA, absB);
-  const min = Math.min(absA, absB);
-  const aIsOnes = absA <= 9;
-  const bIsOnes = absB <= 9;
-  const aIsTwoDigit = absA >= 10 && absA <= 99;
-  const bIsTwoDigit = absB >= 10 && absB <= 99;
-
-  if (aIsOnes && bIsOnes) {
-    return 1;
-  }
-  if ((aIsOnes && bIsTwoDigit) || (bIsOnes && aIsTwoDigit)) {
-    return 2;
-  }
-  if (aIsTwoDigit && bIsTwoDigit) {
-    return min < 20 && max < 30 ? 3 : 4;
-  }
-  return 4;
-}
-
-export function integerMultiplyBaseCost(a: number, b: number): number {
-  return pairOperandBaseCost(Math.abs(a), Math.abs(b));
-}
-
-export function integerDivideBaseCost(dividend: number, divisor: number): number {
-  if (divisor === 0) {
-    return 4;
-  }
-  const absDivisor = Math.abs(divisor);
-  const quotient = Math.abs(dividend) / absDivisor;
-  return pairOperandBaseCost(absDivisor, quotient);
-}
-
-export function squareBaseCost(n: number): number {
-  if (n <= 12) return 1;
-  if (n <= 20) return 2;
-  if (n <= 25) return 3;
-  return 4;
-}
-
-export function squareRootBaseCost(radicand: number): number {
-  const root = Math.sqrt(radicand);
-  if (root <= 10) return 1;
-  if (root <= 16) return 2;
-  return 3;
-}
-
-export function cubeBaseCost(n: number): number {
-  return n <= 5 ? 2 : 3;
-}
-
-export function fourthPowerBaseCost(n: number): number {
-  return n <= 4 ? 3 : 4;
-}
-
-export function cubeRootBaseCost(root: number): number {
-  return root <= 4 ? 2 : 3;
-}
-
-export function fourthRootBaseCost(root: number): number {
-  return root <= 4 ? 2 : 3;
-}
-
-export function unlikeDenomBaseCost(left: Fraction, right: Fraction): number {
-  const common = fractionLcm(left.den, right.den);
-  if (common > 100) {
-    return 0;
-  }
-  if (common <= 12) return 3;
-  if (common <= 60) return 4;
-  if (common <= 84) return 5;
-  return 6;
-}
-
-export function fractionSameDenomBaseCost(denominator: number, needsReduce = false): number {
-  if (denominator <= 6 && !needsReduce) return 1;
-  if (denominator <= 12) return 2;
-  return 3;
-}
-
-export function fractionMultiplyBaseCost(left: Fraction, right: Fraction): number {
-  const productNum = left.num * right.num;
-  const productDen = left.den * right.den;
-  const canCrossCancel =
-    left.num % right.den === 0 ||
-    left.den % right.num === 0 ||
-    right.num % left.den === 0 ||
-    right.den % left.num === 0;
-  if (canCrossCancel || (productNum <= 20 && productDen <= 20)) return 2;
-  if (productNum <= 50 && productDen <= 50) return 3;
-  return 4;
-}
-
-export function fractionDivideBaseCost(left: Fraction, right: Fraction): number {
-  const canCrossCancel = left.num % right.num === 0 || left.den % right.den === 0;
-  if (canCrossCancel) return 3;
-  const productNum = left.num * right.den;
-  const productDen = left.den * right.num;
-  if (productNum <= 30 && productDen <= 30) return 4;
-  return 5;
-}
-
-export function fractionToDecimalBaseCost(denominator: number): number {
-  if ([2, 4, 5, 10].includes(denominator)) return 1;
-  if ([8, 20, 25].includes(denominator)) return 2;
-  return 3;
-}
-
-export function decimalAddBaseCost(left: number, right: number): number {
-  const sum = left + right;
-  return sum < 1 && Number.isInteger(sum * 10) ? 1 : 2;
-}
-
-export function decimalSubtractBaseCost(whole: number, fraction: number): number {
-  return fraction < 1 && whole >= 1 ? 2 : 1;
-}
-
-export function decimalMultiplyBaseCost(decimal: number, integer: number): number {
-  const result = decimal * integer;
-  return Number.isInteger(Math.round(result * 10)) ? 2 : 3;
+export function costNodesFromTemplates(templates: readonly CalculationTemplateSpec[]): CostNode[] {
+  return templates.map(costNodeFromCalculationTemplate);
 }
 
 export function baseCostForTemplate(spec: CalculationTemplateSpec): number {
-  switch (spec.kind) {
-    case "integer-add":
-      return integerAddBaseCost(spec.a, spec.b);
-    case "integer-subtract":
-      return integerSubtractBaseCost(spec.a, spec.b);
-    case "integer-multiply":
-      return integerMultiplyBaseCost(spec.a, spec.b);
-    case "integer-divide":
-      return integerDivideBaseCost(spec.dividend, spec.divisor);
-    case "absolute-value":
-      return 1;
-    case "square":
-      return squareBaseCost(spec.n);
-    case "square-root":
-      return squareRootBaseCost(spec.radicand);
-    case "cube":
-      return cubeBaseCost(spec.n);
-    case "fourth-power":
-      return fourthPowerBaseCost(spec.n);
-    case "cube-root":
-      return cubeRootBaseCost(spec.root);
-    case "fourth-root":
-      return fourthRootBaseCost(spec.root);
-    case "symbolic-simplify":
-      return spec.nested ? 5 : 4;
-    case "fraction-same-denom":
-      return fractionSameDenomBaseCost(spec.denominator, spec.needsReduce);
-    case "fraction-unlike-denom":
-      return unlikeDenomBaseCost(spec.left, spec.right);
-    case "fraction-multiply":
-      return fractionMultiplyBaseCost(spec.left, spec.right);
-    case "fraction-divide":
-      return fractionDivideBaseCost(spec.left, spec.right);
-    case "fraction-to-decimal":
-      return fractionToDecimalBaseCost(spec.denominator);
-    case "decimal-add":
-      return decimalAddBaseCost(spec.left, spec.right);
-    case "decimal-subtract":
-      return decimalSubtractBaseCost(spec.whole, spec.fraction);
-    case "decimal-multiply":
-      return decimalMultiplyBaseCost(spec.decimal, spec.integer);
-    default:
-      return 1;
+  return calculateCost(costNodeFromCalculationTemplate(spec));
+}
+
+export function unlikeDenomBaseCost(left: Fraction, right: Fraction): number {
+  if (lcm(left.den, right.den) > 100) {
+    return 0;
   }
-}
-
-export function workingMemoryCost(templateCount: number): number {
-  return Math.max(0, templateCount - 1);
-}
-
-export function clampMentalCost(value: number): MentalCost {
-  return Math.min(11, Math.max(1, Math.round(value))) as MentalCost;
+  return baseCostForTemplate({ kind: "fraction-unlike-denom", left, right });
 }
 
 export function calculateMentalCost(templates: readonly CalculationTemplateSpec[]): MentalCost {
-  const totalBase = templates.reduce((sum, spec) => sum + baseCostForTemplate(spec), 0);
-  return clampMentalCost(totalBase + workingMemoryCost(templates.length));
+  return calculateQuestionCost(costNodesFromTemplates(templates));
 }
 
-export function describeMentalCost(templates: readonly CalculationTemplateSpec[]): {
+export interface CostStepDescription {
+  label: string;
+  internalCost: number;
+  effectiveCost: number;
+}
+
+export interface MentalCostDescription {
   templates: readonly CalculationTemplateSpec[];
-  baseCosts: number[];
-  workingMemoryCost: number;
+  steps: CostStepDescription[];
+  /** 各步 effective cost 之和（不含多步驟協調成本）。 */
+  stepsCost: number;
+  /** 多步驟協調成本：max(0, stepCount - 1) × MULTI_STEP_COORDINATION_COST。 */
+  coordinationOverhead: number;
   mentalCost: MentalCost;
-} {
-  const baseCosts = templates.map((spec) => baseCostForTemplate(spec));
-  const memory = workingMemoryCost(templates.length);
+}
+
+export function describeMentalCost(
+  templates: readonly CalculationTemplateSpec[],
+): MentalCostDescription {
+  const nodes = costNodesFromTemplates(templates);
+  const steps: CostStepDescription[] = nodes.map((node) => {
+    const { effectiveCost, breakdown } = describeCost(node);
+    const first = breakdown[0];
+    return {
+      label: first?.label ?? node.kind,
+      internalCost: first?.internalCost ?? effectiveCost,
+      effectiveCost,
+    };
+  });
+
+  const mentalCost = calculateQuestionCost(nodes);
+  const stepsCost = steps.reduce((sum, step) => sum + step.effectiveCost, 0);
+
   return {
     templates,
-    baseCosts,
-    workingMemoryCost: memory,
-    mentalCost: clampMentalCost(baseCosts.reduce((a, b) => a + b, 0) + memory),
+    steps,
+    stepsCost,
+    coordinationOverhead: mentalCost - stepsCost,
+    mentalCost,
   };
+}
+
+export function mcInteger(operation: IntegerOperation, a: number, b: number): MentalCost {
+  return calculateCost({ kind: "integer", operation, a, b });
+}
+
+export function mcFraction(operation: FractionOperation, left: Fraction, right: Fraction): MentalCost {
+  return calculateCost({ kind: "fraction", operation, left, right });
+}
+
+export function mcNodes(...nodes: CostNode[]): MentalCost {
+  return calculateQuestionCost(nodes);
+}
+
+// Legacy exports kept for tests that import specific helpers
+export {
+  integerAddInternalCost as integerAddBaseCost,
+  integerSubtractInternalCost as integerSubtractBaseCost,
+} from "./costModel";
+
+export function integerMultiplyBaseCost(a: number, b: number): number {
+  return calculateCost({ kind: "integer", operation: "multiply", a, b });
+}
+
+export function integerDivideBaseCost(dividend: number, divisor: number): number {
+  return calculateCost({ kind: "integer", operation: "divide", a: dividend, b: divisor });
+}
+
+export function squareBaseCost(n: number): number {
+  return calculateCost({ kind: "power", n, exponent: 2 });
+}
+
+export function squareRootBaseCost(radicand: number): number {
+  return calculateCost({ kind: "root", radicand, degree: 2 });
+}
+
+export function cubeBaseCost(n: number): number {
+  return calculateCost({ kind: "power", n, exponent: 3 });
+}
+
+export function fourthPowerBaseCost(n: number): number {
+  return calculateCost({ kind: "power", n, exponent: 4 });
+}
+
+export function cubeRootBaseCost(root: number): number {
+  return calculateCost({ kind: "root", radicand: root ** 3, degree: 3 });
+}
+
+export function fourthRootBaseCost(root: number): number {
+  return calculateCost({ kind: "root", radicand: root ** 4, degree: 4 });
+}
+
+export function fractionSameDenomBaseCost(denominator: number, needsReduce = false): number {
+  return baseCostForTemplate({ kind: "fraction-same-denom", denominator, needsReduce });
+}
+
+export function fractionMultiplyBaseCost(left: Fraction, right: Fraction): number {
+  return baseCostForTemplate({ kind: "fraction-multiply", left, right });
+}
+
+export function fractionDivideBaseCost(left: Fraction, right: Fraction): number {
+  return baseCostForTemplate({ kind: "fraction-divide", left, right });
+}
+
+export function fractionToDecimalBaseCost(denominator: number): number {
+  return baseCostForTemplate({ kind: "fraction-to-decimal", denominator });
+}
+
+export function decimalAddBaseCost(left: number, right: number): number {
+  return baseCostForTemplate({ kind: "decimal-add", left, right });
+}
+
+export function decimalSubtractBaseCost(whole: number, fraction: number): number {
+  return baseCostForTemplate({ kind: "decimal-subtract", whole, fraction });
+}
+
+export function decimalMultiplyBaseCost(decimal: number, integer: number): number {
+  return baseCostForTemplate({ kind: "decimal-multiply", decimal, integer });
+}
+
+export function workingMemoryCost(_templateCount: number): number {
+  return 0;
+}
+
+export function clampMentalCost(value: number): MentalCost {
+  return value;
 }

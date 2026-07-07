@@ -3,10 +3,9 @@ import { generateArithmeticQuestion } from "./generators/arithmetic";
 import { generateFractionQuestion } from "./generators/fractions";
 import { generatePowersQuestion } from "./generators/powers";
 import {
-  fallbackBucketsForDifficulty,
+  costRangeForDifficulty,
   matchesMentalCostBucket,
-  pickTargetMentalCostBucket,
-  type MentalCostBucket,
+  maxQuestionsPerType,
 } from "./mentalCost";
 import { getQuestionTypesForTags } from "./templates";
 import type { GenerateQuestionInput, Question, QuestionGenerator, QuestionType } from "./types";
@@ -20,7 +19,7 @@ const generatorByType: Record<QuestionType, QuestionGenerator> = {
 
 export const availableQuestionTypes = Object.keys(generatorByType) as QuestionType[];
 
-const MAX_GENERATION_ATTEMPTS = 100;
+const MAX_GENERATION_ATTEMPTS = 60;
 
 function questionMatchesTargetTags(question: Question, targetTags?: string[]): boolean {
   if (!targetTags || targetTags.length === 0) {
@@ -68,34 +67,47 @@ function getEligibleTypes(input: GenerateQuestionInput): QuestionType[] {
   return availableQuestionTypes.filter((type) => type === input.mode);
 }
 
-function tryGenerateQuestion(
-  input: GenerateQuestionInput,
-  buckets: MentalCostBucket[],
-  options?: { requireBucketMatch?: boolean },
-): Question | undefined {
-  const requireBucketMatch = options?.requireBucketMatch ?? true;
-  const eligibleTypes = getEligibleTypes(input);
+/**
+ * 排除已達本次練習數量上限的題型，避免高 cost 題型壟斷整份練習。
+ * 若全部題型都達上限（理論上不會發生），回傳原列表以免卡死。
+ */
+function applyTypeQuota(types: QuestionType[], input: GenerateQuestionInput): QuestionType[] {
+  const { typeCounts, questionLimit } = input.context;
+  if (!typeCounts || !questionLimit || types.length <= 1) {
+    return types;
+  }
+
+  const cap = maxQuestionsPerType(questionLimit, types.length);
+  const underCap = types.filter((type) => (typeCounts[type] ?? 0) < cap);
+  return underCap.length > 0 ? underCap : types;
+}
+
+/**
+ * 嚴格產生一題：cost 必須落在該難度的全域 range 內，絕不放寬 range。
+ */
+function tryGenerateQuestion(input: GenerateQuestionInput): Question | undefined {
+  const eligibleTypes = applyTypeQuota(getEligibleTypes(input), input);
 
   if (eligibleTypes.length === 0) {
     return undefined;
   }
 
-  for (const bucket of buckets) {
-    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
-      const type = pickOne(eligibleTypes);
-      const candidate = generatorByType[type]({
-        ...input,
-        targetMentalCostBucket: requireBucketMatch ? bucket : undefined,
-      });
+  const bucket = costRangeForDifficulty(input.difficulty);
 
-      if (
-        candidate &&
-        questionMatchesTargetTags(candidate, input.targetTags) &&
-        (!requireBucketMatch || matchesMentalCostBucket(candidate.mentalCost, bucket)) &&
-        isQuestionValid(candidate, input.difficulty, input.context.seenQuestionIds)
-      ) {
-        return candidate;
-      }
+  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
+    const type = pickOne(eligibleTypes);
+    const candidate = generatorByType[type]({
+      ...input,
+      targetMentalCostBucket: bucket,
+    });
+
+    if (
+      candidate &&
+      questionMatchesTargetTags(candidate, input.targetTags) &&
+      matchesMentalCostBucket(candidate.mentalCost, bucket) &&
+      isQuestionValid(candidate, input.difficulty, input.context.seenQuestionIds)
+    ) {
+      return candidate;
     }
   }
 
@@ -103,56 +115,37 @@ function tryGenerateQuestion(
 }
 
 export function generateQuestion(input: GenerateQuestionInput): Question {
-  const primaryBucket = pickTargetMentalCostBucket(input.difficulty);
-  const buckets = [primaryBucket, ...fallbackBucketsForDifficulty(input.difficulty).filter((bucket) => bucket !== primaryBucket)];
-  const requireBucketMatch = input.mode === "mixed";
-
-  const candidate = tryGenerateQuestion(input, buckets, { requireBucketMatch });
+  const candidate = tryGenerateQuestion(input);
 
   if (candidate) {
     return candidate;
   }
 
+  // weakness-focused 只放寬「題型／技巧」限制（改用所有 tag 相容題型或放棄 tag 匹配），
+  // 但 cost range 一律維持嚴格，不放寬難度。
   if (input.mode === "weakness-focused" && input.targetTags && input.targetTags.length > 0) {
     const tagCompatibleTypes = getQuestionTypesForTags(input.targetTags);
 
-    const tagFirstCandidate = tryGenerateQuestion(input, fallbackBucketsForDifficulty(input.difficulty), {
-      requireBucketMatch: false,
-    });
-
-    if (tagFirstCandidate) {
-      return tagFirstCandidate;
-    }
-
     if (tagCompatibleTypes.length > 0) {
-      const relaxedCandidate = tryGenerateQuestion(
-        {
-          ...input,
-          targetTypes: tagCompatibleTypes,
-        },
-        fallbackBucketsForDifficulty(input.difficulty),
-      );
+      const relaxedTypes = tryGenerateQuestion({
+        ...input,
+        targetTypes: tagCompatibleTypes,
+      });
 
-      if (relaxedCandidate) {
-        return relaxedCandidate;
+      if (relaxedTypes) {
+        return relaxedTypes;
       }
     }
+
+    const withoutTags = tryGenerateQuestion({ ...input, targetTags: undefined });
+    if (withoutTags) {
+      return withoutTags;
+    }
   }
 
-  const fallbackType = pickOne(availableQuestionTypes);
-  const fallback = generatorByType[fallbackType]({
-    ...input,
-    mode: "mixed",
-    targetTags: undefined,
-    targetTypes: undefined,
-    targetMentalCostBucket: undefined,
-  });
-
-  if (!fallback) {
-    throw new Error("No question generator returned a question.");
-  }
-
-  return fallback;
+  throw new Error(
+    `No in-range question could be generated for mode=${input.mode}, difficulty=${input.difficulty}.`,
+  );
 }
 
 export function questionMatchesTargets(question: Question, targetTags?: string[]): boolean {

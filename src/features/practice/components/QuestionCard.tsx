@@ -1,6 +1,7 @@
 import type { Question } from "../../questions/types";
 import { getSkillTagLabel } from "../../questions/tags";
 import { Card } from "../../../shared/components/Card";
+import { CostInspector } from "./CostInspector";
 import styles from "./PracticeComponents.module.css";
 
 const DIFFICULTY_LABELS: Record<Question["difficulty"], string> = {
@@ -32,7 +33,10 @@ export function QuestionCard({
         <span className={styles.questionCounter}>
           第 {currentIndex + 1} / {totalQuestions} 題
         </span>
-        <span className={styles.difficultyBadge}>{DIFFICULTY_LABELS[question.difficulty]}</span>
+        <div className={styles.questionMetaRight}>
+          <CostInspector question={question} />
+          <span className={styles.difficultyBadge}>{DIFFICULTY_LABELS[question.difficulty]}</span>
+        </div>
       </div>
 
       <div

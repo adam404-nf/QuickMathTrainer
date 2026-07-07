@@ -1,65 +1,50 @@
-import type { Difficulty, MentalCost } from "./types";
+import type { Difficulty } from "./types";
 
 export const LCM_HARD_CAP = 100;
 
-export type MentalCostBucket =
-  | { type: "exact"; cost: MentalCost }
-  | { type: "range"; min: MentalCost; max: MentalCost };
+export type MentalCostBucket = { type: "range"; min: number; max: number };
 
-type WeightedBucket = {
-  weight: number;
-  bucket: MentalCostBucket;
+/**
+ * 全題型共用同一套 difficulty cost range。
+ *
+ * 各題型之間的難度差異已由 Chunk constant（見 costModel.ts）校準到同一條
+ * mental-cost 尺度，因此難度範圍不需再依題型分開，否則會雙重計算題型難度。
+ */
+export const DIFFICULTY_COST_RANGES: Record<Difficulty, MentalCostBucket> = {
+  easy: { type: "range", min: 8, max: 15 },
+  medium: { type: "range", min: 12, max: 20 },
+  hard: { type: "range", min: 15, max: 30 },
 };
 
-const easyDistribution: readonly WeightedBucket[] = [
-  { weight: 10, bucket: { type: "exact", cost: 3 } },
-  { weight: 35, bucket: { type: "exact", cost: 5 } },
-  { weight: 35, bucket: { type: "exact", cost: 6 } },
-  { weight: 20, bucket: { type: "exact", cost: 7 } },
-];
+export function costRangeForDifficulty(difficulty: Difficulty): MentalCostBucket {
+  return DIFFICULTY_COST_RANGES[difficulty];
+}
 
-const mediumDistribution: readonly WeightedBucket[] = [
-  { weight: 15, bucket: { type: "exact", cost: 7 } },
-  { weight: 40, bucket: { type: "exact", cost: 8 } },
-  { weight: 35, bucket: { type: "exact", cost: 9 } },
-  { weight: 10, bucket: { type: "exact", cost: 10 } },
-];
+/**
+ * 向下相容的別名：所有題型共用同一範圍，因此忽略 type 參數。
+ */
+export function costRangeForType(_type: unknown, difficulty: Difficulty): MentalCostBucket {
+  return costRangeForDifficulty(difficulty);
+}
 
-const hardDistribution: readonly WeightedBucket[] = [
-  { weight: 20, bucket: { type: "exact", cost: 9 } },
-  { weight: 45, bucket: { type: "exact", cost: 10 } },
-  { weight: 35, bucket: { type: "exact", cost: 11 } },
-];
-
-export const mentalCostDistributionByDifficulty: Record<Difficulty, readonly WeightedBucket[]> = {
-  easy: easyDistribution,
-  medium: mediumDistribution,
-  hard: hardDistribution,
-};
-
-export function matchesMentalCostBucket(cost: MentalCost, bucket: MentalCostBucket): boolean {
-  if (bucket.type === "exact") {
-    return cost === bucket.cost;
-  }
+export function matchesMentalCostBucket(cost: number, bucket: MentalCostBucket): boolean {
   return cost >= bucket.min && cost <= bucket.max;
 }
 
-export function pickTargetMentalCostBucket(difficulty: Difficulty, random = Math.random()): MentalCostBucket {
-  const distribution = mentalCostDistributionByDifficulty[difficulty];
-  const totalWeight = distribution.reduce((sum, item) => sum + item.weight, 0);
-  let threshold = random * totalWeight;
-
-  for (const item of distribution) {
-    threshold -= item.weight;
-    if (threshold <= 0) {
-      return item.bucket;
-    }
-  }
-
-  return distribution[distribution.length - 1].bucket;
+export function costBelowBucket(cost: number, bucket: MentalCostBucket): boolean {
+  return cost < bucket.min;
 }
 
-export function fallbackBucketsForDifficulty(difficulty: Difficulty): MentalCostBucket[] {
-  const distribution = mentalCostDistributionByDifficulty[difficulty];
-  return distribution.map((item) => item.bucket);
+export function costAboveBucket(cost: number, bucket: MentalCostBucket): boolean {
+  return cost > bucket.max;
+}
+
+/**
+ * 混合／弱點模式下單一題型的數量上限，避免高 cost 題型（如分數）壟斷整份練習。
+ */
+export function maxQuestionsPerType(questionLimit: number, eligibleTypeCount: number): number {
+  if (eligibleTypeCount <= 1) {
+    return questionLimit;
+  }
+  return Math.ceil(questionLimit / eligibleTypeCount) + 1;
 }

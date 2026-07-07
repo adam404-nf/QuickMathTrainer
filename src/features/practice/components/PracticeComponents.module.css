@@ -11,6 +11,115 @@
   justify-content: space-between;
 }
 
+.questionMetaRight {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.costInspector {
+  position: relative;
+}
+
+.costButton {
+  background: var(--color-muted-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.7rem;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+
+.costButton:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.costPanel {
+  animation: fadeSlideUp var(--motion-fast) var(--ease-out) both;
+  background: var(--color-surface, var(--color-muted-bg));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md, 0 10px 30px rgba(15, 23, 42, 0.18));
+  display: grid;
+  gap: 0.5rem;
+  min-width: 16rem;
+  padding: 0.85rem 1rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 20;
+}
+
+.costSummaryRow {
+  align-items: center;
+  color: var(--color-muted);
+  display: flex;
+  font-size: 0.8rem;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.costSummaryRow strong {
+  color: var(--color-foreground);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.costInRange {
+  color: var(--color-success, #16a34a);
+  font-weight: 600;
+}
+
+.costOutRange {
+  color: var(--color-danger, #dc2626);
+  font-weight: 600;
+}
+
+.costStepTitle {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: 0.15rem 0 0;
+  text-transform: uppercase;
+}
+
+.costStepList {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.costStep {
+  align-items: center;
+  display: flex;
+  font-size: 0.8rem;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.costStepName {
+  color: var(--color-foreground);
+}
+
+.costStepValue {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .questionCounter {
   color: var(--color-muted);
   font-family: var(--font-mono);

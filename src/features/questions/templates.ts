@@ -11,7 +11,7 @@ import {
 } from "./fractionMath";
 import { calculateMentalCost, type CalculationTemplateSpec } from "./calculationTemplates";
 import type { QuestionTechnique } from "./types";
-import type { Difficulty, MentalCost, Question, QuestionKind, QuestionType } from "./types";
+import type { Difficulty, Question, QuestionKind, QuestionType } from "./types";
 import {
   additionTechnique,
   cubeRootTechnique,
@@ -25,6 +25,7 @@ import {
   doubleAbsTechnique,
   fourthPowerTechnique,
   fourthRootTechnique,
+  genericTechnique,
   integerAbsCompositeTechnique,
   multiplicationTechnique,
   multiplyThenAddTechnique,
@@ -78,7 +79,7 @@ function makeQuestion(params: {
   answer: string;
   difficulty: Difficulty;
   tags: string[];
-  mentalCost: MentalCost;
+  costTemplates: CalculationTemplateSpec[];
   technique: QuestionTechnique;
   kind: QuestionKind;
   distractors: readonly string[];
@@ -92,13 +93,14 @@ function makeQuestion(params: {
     options: withOptions(params.answer, params.distractors, params.kind),
     difficulty: params.difficulty,
     tags: params.tags,
-    mentalCost: params.mentalCost,
+    mentalCost: calculateMentalCost(params.costTemplates),
+    costTemplates: params.costTemplates,
     technique: params.technique,
   };
 }
 
-function mc(...templates: CalculationTemplateSpec[]): MentalCost {
-  return calculateMentalCost(templates);
+function ct(...templates: CalculationTemplateSpec[]): CalculationTemplateSpec[] {
+  return templates;
 }
 
 function formatDecimal(value: number): string {
@@ -117,8 +119,8 @@ function unlikeDenominatorQuestion(
     const [left, right] = pair;
     const common = lcm(left.den, right.den);
     const template: CalculationTemplateSpec = { kind: "fraction-unlike-denom", left, right };
-    const mentalCost = mc(template);
-    if (mentalCost === 1) continue;
+    const costTemplates = ct(template);
+    if (calculateMentalCost(costTemplates) < 2) continue;
 
     const leftNum = left.num * (common / left.den);
     const rightNum = right.num * (common / right.den);
@@ -132,7 +134,7 @@ function unlikeDenominatorQuestion(
       answer,
       difficulty,
       tags: ["fractions", tag],
-      mentalCost,
+      costTemplates,
       technique: unlikeDenominatorTechnique(left, right, op),
       kind,
       distractors: [
@@ -153,7 +155,7 @@ function unlikeDenominatorQuestion(
     answer: `${leftNumerator + rightNumerator}/${denominator}`,
     difficulty,
     tags: ["fractions", "addition"],
-    mentalCost: mc({ kind: "fraction-same-denom", denominator }),
+    costTemplates: ct({ kind: "fraction-same-denom", denominator }),
     technique: sameDenominatorAddTechnique(leftNumerator, rightNumerator, denominator),
     kind,
     distractors: [`${leftNumerator + rightNumerator + 1}/${denominator}`, `3/${denominator}`, `1/${denominator}`, `2/${denominator}`],
@@ -183,9 +185,9 @@ function fractionBinaryQuestion(
     prompt: `${formatFraction(left)} ${op} ${formatFraction(right)} = ?`,
     answer,
     difficulty,
-    tags: ["fractions", op === "×" ? "multiplication" : "division"],
-    mentalCost: mc(template),
-    technique,
+      tags: ["fractions", op === "×" ? "multiplication" : "division"],
+      costTemplates: ct(template),
+      technique,
     kind,
     distractors: [answer, formatFraction({ num: left.num + right.num, den: left.den }), "1/2", "2/3"],
   });
@@ -204,7 +206,7 @@ function compositeFractionTemplate(stepCount: 2 | 3): QuestionTemplate {
       answer: built.answer,
       difficulty,
       tags: built.tags,
-      mentalCost: calculateMentalCost(built.calculationTemplates),
+      costTemplates: [...built.calculationTemplates],
       technique: built.technique,
       kind,
       distractors: [built.answer, "1/2", "2/3", "3/4"],
@@ -225,7 +227,7 @@ function fractionAbsTemplate(withOuterOp: boolean): QuestionTemplate {
       answer: built.answer,
       difficulty,
       tags: built.tags,
-      mentalCost: calculateMentalCost(built.calculationTemplates),
+      costTemplates: [...built.calculationTemplates],
       technique: built.technique,
       kind,
       distractors: [built.answer, "1/6", "1/4", "1/3"],
@@ -245,7 +247,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["multiplication"],
-      mentalCost: mc({ kind: "integer-multiply", a: base, b: partner }),
+      costTemplates: ct({ kind: "integer-multiply", a: base, b: partner }),
       technique: multiplicationTechnique(base, partner),
       kind,
       distractors: [answer + partner, answer - partner, answer + 10, answer - 10].map(String),
@@ -262,7 +264,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["addition"],
-      mentalCost: mc({ kind: "integer-add", a: left, b: right }),
+      costTemplates: ct({ kind: "integer-add", a: left, b: right }),
       technique: additionTechnique(left, right),
       kind,
       distractors: [answer + 1, answer - 1, answer + 10, answer - 10].map(String),
@@ -279,7 +281,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["division"],
-      mentalCost: mc({ kind: "integer-divide", dividend, divisor }),
+      costTemplates: ct({ kind: "integer-divide", dividend, divisor }),
       technique: divisionTechnique(dividend, divisor, answer),
       kind,
       distractors: [answer + 1, answer - 1, answer + divisor, answer - divisor].map(String),
@@ -297,7 +299,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["addition", "multiplication", "order-of-operations", "working-memory"],
-      mentalCost: mc(
+      costTemplates: ct(
         { kind: "integer-add", a, b },
         { kind: "integer-multiply", a: a + b, b: c },
       ),
@@ -318,7 +320,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["multiplication", "addition", "order-of-operations", "working-memory"],
-      mentalCost: mc(
+      costTemplates: ct(
         { kind: "integer-multiply", a, b },
         { kind: "integer-add", a: a * b, b: c },
       ),
@@ -338,7 +340,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["multiplication", "subtraction", "working-memory"],
-      mentalCost: mc(
+      costTemplates: ct(
         { kind: "square", n: a },
         { kind: "square", n: b },
         { kind: "integer-subtract", a: a * a, b: b * b },
@@ -359,7 +361,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["addition", "subtraction", "multiplication", "working-memory"],
-      mentalCost: mc(
+      costTemplates: ct(
         { kind: "integer-add", a, b },
         { kind: "integer-subtract", a, b },
         { kind: "integer-multiply", a: a + b, b: a - b },
@@ -382,7 +384,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["absolute-value", "order-of-operations", "working-memory", "multiplication"],
-      mentalCost: mc(
+      costTemplates: ct(
         { kind: "absolute-value" },
         { kind: "integer-multiply", a: b, b: c },
         { kind: "integer-add", a: Math.abs(a), b: b * c },
@@ -403,7 +405,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["absolute-value", "subtraction", "working-memory"],
-      mentalCost: mc(
+      costTemplates: ct(
         { kind: "absolute-value" },
         { kind: "absolute-value" },
         { kind: "integer-subtract", a: Math.abs(a), b: Math.abs(b) },
@@ -413,6 +415,328 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       distractors: [answer + 1, answer - 1, Math.abs(a) + Math.abs(b), Math.abs(a)].map(String),
     });
   },
+];
+
+/**
+ * 多步冪次複合題：以「先平方（或立方）再加減」的多步結構，配合多步驟協調成本
+ * （見 costModel.calculateQuestionCost），讓 powers 題型也能達到與其他題型相同的
+ * 統一難度 cost range。
+ */
+const squarePlusIntTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+  const range = {
+    easy: { aMin: 6, aMax: 10, cMin: 4, cMax: 45 },
+    medium: { aMin: 11, aMax: 15, cMin: 10, cMax: 60 },
+    hard: { aMin: 13, aMax: 18, cMin: 20, cMax: 90 },
+  }[difficulty];
+  const a = randomInt(range.aMin, range.aMax);
+  const c = randomInt(range.cMin, range.cMax);
+  const op = pickOne(["+", "−"] as const);
+  const square = a * a;
+  const answer = op === "+" ? square + c : square - c;
+
+  return makeQuestion({
+    type: "powers",
+    prompt: `${a}² ${op} ${c} = ?`,
+    answer: String(answer),
+    difficulty,
+    tags: ["multiplication", "working-memory"],
+    costTemplates: ct(
+      { kind: "square", n: a },
+      op === "+"
+        ? { kind: "integer-add", a: square, b: c }
+        : { kind: "integer-subtract", a: square, b: c },
+    ),
+    technique: genericTechnique("先平方再加減", [
+      `${a}² = ${square}`,
+      `${square} ${op} ${c} = ${answer}`,
+    ]),
+    kind,
+    distractors: [answer + 1, answer - 1, answer + c, square].map(String),
+  });
+};
+
+const twoSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+  const range = {
+    easy: { min: 6, max: 10 },
+    medium: { min: 8, max: 12 },
+    hard: { min: 12, max: 19 },
+  }[difficulty];
+  let a = randomInt(range.min, range.max);
+  let b = randomInt(range.min, range.max);
+  const op = pickOne(["+", "−"] as const);
+  if (op === "−" && b > a) {
+    const swap = a;
+    a = b;
+    b = swap;
+  }
+  const squareA = a * a;
+  const squareB = b * b;
+  const answer = op === "+" ? squareA + squareB : squareA - squareB;
+
+  return makeQuestion({
+    type: "powers",
+    prompt: `${a}² ${op} ${b}² = ?`,
+    answer: String(answer),
+    difficulty,
+    tags: ["multiplication", "working-memory"],
+    costTemplates: ct(
+      { kind: "square", n: a },
+      { kind: "square", n: b },
+      op === "+"
+        ? { kind: "integer-add", a: squareA, b: squareB }
+        : { kind: "integer-subtract", a: squareA, b: squareB },
+    ),
+    technique: genericTechnique("先算兩個平方再合併", [
+      `${a}² = ${squareA}，${b}² = ${squareB}`,
+      `${squareA} ${op} ${squareB} = ${answer}`,
+    ]),
+    kind,
+    distractors: [answer + 1, answer - 1, squareA, squareB].map(String),
+  });
+};
+
+/**
+ * 三步平方複合題 a² + b² − c²：三個 chunk，帶來 (3-1)×1 的協調成本，
+ * 適合 hard 15–30 的上緣。
+ */
+const threeSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+  const range = {
+    easy: { min: 5, max: 9 },
+    medium: { min: 7, max: 11 },
+    hard: { min: 9, max: 15 },
+  }[difficulty];
+  const a = randomInt(range.min, range.max);
+  const b = randomInt(range.min, range.max);
+  const c = randomInt(range.min, range.max);
+  const squareA = a * a;
+  const squareB = b * b;
+  const squareC = c * c;
+  const answer = squareA + squareB - squareC;
+
+  return makeQuestion({
+    type: "powers",
+    prompt: `${a}² + ${b}² − ${c}² = ?`,
+    answer: String(answer),
+    difficulty,
+    tags: ["multiplication", "working-memory"],
+    costTemplates: ct(
+      { kind: "square", n: a },
+      { kind: "square", n: b },
+      { kind: "square", n: c },
+      { kind: "integer-add", a: squareA, b: squareB },
+      { kind: "integer-subtract", a: squareA + squareB, b: squareC },
+    ),
+    technique: genericTechnique("先算三個平方再合併", [
+      `${a}² = ${squareA}，${b}² = ${squareB}，${c}² = ${squareC}`,
+      `${squareA} + ${squareB} − ${squareC} = ${answer}`,
+    ]),
+    kind,
+    distractors: [answer + 1, answer - 1, squareA + squareB, squareC].map(String),
+  });
+};
+
+/**
+ * 立方複合題：easy/medium 用「a³ ± c」，hard 用「a³ ± b³」（多一個 chunk），
+ * 讓 ³ 記憶提取題也能落在統一 range。
+ */
+const cubeComposite: QuestionTemplate = ({ difficulty, kind }) => {
+  const op = pickOne(["+", "−"] as const);
+
+  if (difficulty === "hard") {
+    let a = randomInt(4, 8);
+    let b = randomInt(2, 7);
+    if (b > a) {
+      const swap = a;
+      a = b;
+      b = swap;
+    }
+    const cubeA = a ** 3;
+    const cubeB = b ** 3;
+    const answer = op === "+" ? cubeA + cubeB : cubeA - cubeB;
+
+    return makeQuestion({
+      type: "powers",
+      prompt: `${a}³ ${op} ${b}³ = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["multiplication", "working-memory"],
+      costTemplates: ct(
+        { kind: "cube", n: a },
+        { kind: "cube", n: b },
+        op === "+"
+          ? { kind: "integer-add", a: cubeA, b: cubeB }
+          : { kind: "integer-subtract", a: cubeA, b: cubeB },
+      ),
+      technique: genericTechnique("先算兩個立方再合併", [
+        `${a}³ = ${cubeA}，${b}³ = ${cubeB}`,
+        `${cubeA} ${op} ${cubeB} = ${answer}`,
+      ]),
+      kind,
+      distractors: [answer + 1, answer - 1, cubeA, cubeB].map(String),
+    });
+  }
+
+  const range = difficulty === "easy" ? { aMin: 3, aMax: 6, cMin: 5, cMax: 55 } : { aMin: 4, aMax: 7, cMin: 15, cMax: 90 };
+  const a = randomInt(range.aMin, range.aMax);
+  const cube = a ** 3;
+  const c = randomInt(range.cMin, Math.min(range.cMax, cube - 1));
+  const answer = op === "+" ? cube + c : cube - c;
+
+  return makeQuestion({
+    type: "powers",
+    prompt: `${a}³ ${op} ${c} = ?`,
+    answer: String(answer),
+    difficulty,
+    tags: ["multiplication", "working-memory"],
+    costTemplates: ct(
+      { kind: "cube", n: a },
+      op === "+"
+        ? { kind: "integer-add", a: cube, b: c }
+        : { kind: "integer-subtract", a: cube, b: c },
+    ),
+    technique: genericTechnique("先立方再加減", [`${a}³ = ${cube}`, `${cube} ${op} ${c} = ${answer}`]),
+    kind,
+    distractors: [answer + 1, answer - 1, cube, answer + c].map(String),
+  });
+};
+
+/**
+ * 四次方複合題 a⁴ ± c：以較大的四次方 base 配合加減步驟達到統一 range。
+ */
+const fourthComposite: QuestionTemplate = ({ difficulty, kind }) => {
+  const op = pickOne(["+", "−"] as const);
+  const range = {
+    easy: { aMin: 2, aMax: 4, cMin: 5, cMax: 40 },
+    medium: { aMin: 2, aMax: 5, cMin: 10, cMax: 90 },
+    hard: { aMin: 3, aMax: 5, cMin: 20, cMax: 90 },
+  }[difficulty];
+  const a = randomInt(range.aMin, range.aMax);
+  const power = a ** 4;
+  const c = randomInt(range.cMin, Math.min(range.cMax, power - 1));
+  const answer = op === "+" ? power + c : power - c;
+
+  return makeQuestion({
+    type: "powers",
+    prompt: `${a}⁴ ${op} ${c} = ?`,
+    answer: String(answer),
+    difficulty,
+    tags: ["multiplication", "working-memory"],
+    costTemplates: ct(
+      { kind: "fourth-power", n: a },
+      op === "+"
+        ? { kind: "integer-add", a: power, b: c }
+        : { kind: "integer-subtract", a: power, b: c },
+    ),
+    technique: genericTechnique("先算四次方再加減", [`${a}⁴ = ${power}`, `${power} ${op} ${c} = ${answer}`]),
+    kind,
+    distractors: [answer + 1, answer - 1, power, answer + c].map(String),
+  });
+};
+
+/**
+ * 立方根複合題：easy/medium 用「∛rad + c」，hard 用「∛rad + c + d」（多一步）。
+ */
+const cubeRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
+  const root = randomInt(3, 8);
+  const radicand = root ** 3;
+
+  if (difficulty === "hard") {
+    const c = randomInt(11, 90);
+    const d = randomInt(11, 90);
+    const answer = root + c + d;
+
+    return makeQuestion({
+      type: "powers",
+      prompt: `∛${radicand} + ${c} + ${d} = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["cube-root", "working-memory", "addition"],
+      costTemplates: ct(
+        { kind: "cube-root", root },
+        { kind: "integer-add", a: root, b: c },
+        { kind: "integer-add", a: root + c, b: d },
+      ),
+      technique: genericTechnique("先開立方根再連加", [
+        `∛${radicand} = ${root}`,
+        `${root} + ${c} + ${d} = ${answer}`,
+      ]),
+      kind,
+      distractors: [answer + 1, answer - 1, root + c, root].map(String),
+    });
+  }
+
+  const c = randomInt(11, difficulty === "medium" ? 90 : 55);
+  const answer = root + c;
+
+  return makeQuestion({
+    type: "powers",
+    prompt: `∛${radicand} + ${c} = ?`,
+    answer: String(answer),
+    difficulty,
+    tags: ["cube-root", "working-memory", "addition"],
+    costTemplates: ct({ kind: "cube-root", root }, { kind: "integer-add", a: root, b: c }),
+    technique: genericTechnique("先開立方根再相加", [`∛${radicand} = ${root}`, `${root} + ${c} = ${answer}`]),
+    kind,
+    distractors: [answer + 1, answer - 1, root, c].map(String),
+  });
+};
+
+/**
+ * 四次方根複合題：easy/medium 用「⁴√rad + c」，hard 用「⁴√rad + c + d」。
+ */
+const fourthRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
+  const root = randomInt(2, 5);
+  const radicand = root ** 4;
+
+  if (difficulty === "hard") {
+    const c = randomInt(11, 90);
+    const d = randomInt(11, 90);
+    const answer = root + c + d;
+
+    return makeQuestion({
+      type: "powers",
+      prompt: `⁴√${radicand} + ${c} + ${d} = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["fourth-root", "working-memory", "addition"],
+      costTemplates: ct(
+        { kind: "fourth-root", root },
+        { kind: "integer-add", a: root, b: c },
+        { kind: "integer-add", a: root + c, b: d },
+      ),
+      technique: genericTechnique("先開四次方根再連加", [
+        `⁴√${radicand} = ${root}`,
+        `${root} + ${c} + ${d} = ${answer}`,
+      ]),
+      kind,
+      distractors: [answer + 1, answer - 1, root + c, root].map(String),
+    });
+  }
+
+  const c = randomInt(11, difficulty === "medium" ? 90 : 55);
+  const answer = root + c;
+
+  return makeQuestion({
+    type: "powers",
+    prompt: `⁴√${radicand} + ${c} = ?`,
+    answer: String(answer),
+    difficulty,
+    tags: ["fourth-root", "working-memory", "addition"],
+    costTemplates: ct({ kind: "fourth-root", root }, { kind: "integer-add", a: root, b: c }),
+    technique: genericTechnique("先開四次方根再相加", [`⁴√${radicand} = ${root}`, `${root} + ${c} = ${answer}`]),
+    kind,
+    distractors: [answer + 1, answer - 1, root, c].map(String),
+  });
+};
+
+export const powersCompositeTemplates: readonly QuestionTemplate[] = [
+  squarePlusIntTemplate,
+  twoSquaresTemplate,
+  threeSquaresTemplate,
+  cubeComposite,
+  fourthComposite,
+  cubeRootComposite,
+  fourthRootComposite,
 ];
 
 export const powersTemplates: readonly QuestionTemplate[] = [
@@ -426,7 +750,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["multiplication"],
-      mentalCost: mc({ kind: "square", n: value }),
+      costTemplates: ct({ kind: "square", n: value }),
       technique: squareTechnique(value),
       kind,
       distractors: [answer + value, answer - value, answer + 10, answer - 10].map(String),
@@ -442,7 +766,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(root),
       difficulty,
       tags: ["square-root"],
-      mentalCost: mc({ kind: "square-root", radicand }),
+      costTemplates: ct({ kind: "square-root", radicand }),
       technique: squareRootTechnique(root, radicand),
       kind,
       distractors: [root + 1, root - 1, root + 2, root - 2].map(String),
@@ -458,7 +782,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["multiplication", "working-memory"],
-      mentalCost: mc({ kind: "cube", n: base }),
+      costTemplates: ct({ kind: "cube", n: base }),
       technique: cubeTechnique(base),
       kind,
       distractors: [answer + base, answer - base, base ** 2, answer + 3].map(String),
@@ -474,7 +798,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["multiplication", "working-memory"],
-      mentalCost: mc({ kind: "fourth-power", n: base }),
+      costTemplates: ct({ kind: "fourth-power", n: base }),
       technique: fourthPowerTechnique(base),
       kind,
       distractors: [answer + base, answer - base, base ** 3, answer + 4].map(String),
@@ -490,7 +814,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(root),
       difficulty,
       tags: ["cube-root", "working-memory"],
-      mentalCost: mc({ kind: "cube-root", root }),
+      costTemplates: ct({ kind: "cube-root", root }),
       technique: cubeRootTechnique(root, radicand),
       kind,
       distractors: [root + 1, root - 1, root + 2, root - 2].map(String),
@@ -506,7 +830,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(root),
       difficulty,
       tags: ["fourth-root", "working-memory"],
-      mentalCost: mc({ kind: "fourth-root", root }),
+      costTemplates: ct({ kind: "fourth-root", root }),
       technique: fourthRootTechnique(root, radicand),
       kind,
       distractors: [root + 1, root - 1, root + 2, root - 2].map(String),
@@ -524,7 +848,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["square-root", "absolute-value"],
-      mentalCost: mc({ kind: "square-root", radicand }, { kind: "absolute-value" }),
+      costTemplates: ct({ kind: "square-root", radicand }, { kind: "absolute-value" }),
       technique: sqrtSignedSquareTechnique(signed, answer),
       kind,
       distractors: [signed, -answer, answer + 1, answer - 1].map(String),
@@ -539,7 +863,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: `|${variable}|`,
       difficulty,
       tags: ["square-root", "absolute-value", "symbolic-simplification"],
-      mentalCost: mc({ kind: "symbolic-simplify" }),
+      costTemplates: ct({ kind: "symbolic-simplify" }),
       technique: symbolicAbsTechnique(variable),
       kind,
       distractors: [variable, `-${variable}`, `${variable}²`, `±${variable}`],
@@ -555,7 +879,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["absolute-value", "multiplication"],
-      mentalCost: mc({ kind: "absolute-value" }, { kind: "square", n: Math.abs(a) }),
+      costTemplates: ct({ kind: "absolute-value" }, { kind: "square", n: Math.abs(a) }),
       technique: powersAbsCompositeTechnique(a, answer, true),
       kind,
       distractors: [answer + 1, answer - 1, Math.abs(a), a * a].map(String),
@@ -572,15 +896,52 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["absolute-value", "addition"],
-      mentalCost: mc({ kind: "absolute-value" }, { kind: "integer-add", a: Math.abs(a), b }),
+      costTemplates: ct({ kind: "absolute-value" }, { kind: "integer-add", a: Math.abs(a), b }),
       technique: powersAbsCompositeTechnique(a, answer, false),
       kind,
       distractors: [answer + 1, answer - 1, a + b, Math.abs(a) - b].map(String),
     });
   },
+  ...powersCompositeTemplates,
 ];
 
+/**
+ * 小數複合題 (a + b) × m：兩步小數運算配合協調成本，讓小數題也能落在統一 range，
+ * 使 weakness-focused 的 decimals 練習不必因無法達標而退回整數題。
+ */
+const decimalCompositeTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+  const mRange = {
+    easy: { min: 3, max: 9 },
+    medium: { min: 11, max: 29 },
+    hard: { min: 20, max: 29 },
+  }[difficulty];
+  const left = randomInt(1, 9) / 10;
+  const right = randomInt(1, 9) / 10;
+  const multiplier = randomInt(mRange.min, mRange.max);
+  const sum = Number((left + right).toFixed(1));
+  const answer = Number((sum * multiplier).toFixed(2));
+
+  return makeQuestion({
+    type: "fractions",
+    prompt: `(${formatDecimal(left)} + ${formatDecimal(right)}) × ${multiplier} = ?`,
+    answer: formatDecimal(answer),
+    difficulty,
+    tags: ["decimals", "addition", "multiplication", "order-of-operations", "working-memory"],
+    costTemplates: ct(
+      { kind: "decimal-add", left, right },
+      { kind: "decimal-multiply", decimal: sum, integer: multiplier },
+    ),
+    technique: genericTechnique("先算括號內小數加法再乘整數", [
+      `${formatDecimal(left)} + ${formatDecimal(right)} = ${formatDecimal(sum)}`,
+      `${formatDecimal(sum)} × ${multiplier} = ${formatDecimal(answer)}`,
+    ]),
+    kind,
+    distractors: [answer + 0.1, answer - 0.1, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
+  });
+};
+
 export const fractionTemplates: readonly QuestionTemplate[] = [
+  decimalCompositeTemplate,
   ({ difficulty, kind }) => {
     const denominator = pickOne(difficulty === "hard" ? [6, 8, 10, 12] : [2, 3, 4, 5]);
     const leftNumerator = randomInt(1, denominator - 1);
@@ -594,7 +955,7 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer,
       difficulty,
       tags: ["fractions", "addition"],
-      mentalCost: mc({ kind: "fraction-same-denom", denominator }),
+      costTemplates: ct({ kind: "fraction-same-denom", denominator }),
       technique: sameDenominatorAddTechnique(leftNumerator, rightNumerator, denominator),
       kind,
       distractors: [
@@ -624,7 +985,7 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer: String(answer),
       difficulty,
       tags: ["fractions", "decimals"],
-      mentalCost: mc({ kind: "fraction-to-decimal", denominator }),
+      costTemplates: ct({ kind: "fraction-to-decimal", denominator }),
       technique: decimalConversionTechnique(numerator, denominator, answer),
       kind,
       distractors: [answer + 0.1, answer - 0.1, answer + 0.01, Math.max(0, answer - 0.01)].map((item) =>
@@ -643,7 +1004,7 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer: formatDecimal(answer),
       difficulty,
       tags: ["decimals", "addition"],
-      mentalCost: mc({ kind: "decimal-add", left, right }),
+      costTemplates: ct({ kind: "decimal-add", left, right }),
       technique: decimalAddTechnique(left, right, answer),
       kind,
       distractors: [answer + 0.1, answer - 0.1, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
@@ -660,7 +1021,7 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer: formatDecimal(answer),
       difficulty,
       tags: ["decimals", "multiplication"],
-      mentalCost: mc({ kind: "decimal-multiply", decimal: left, integer: right }),
+      costTemplates: ct({ kind: "decimal-multiply", decimal: left, integer: right }),
       technique: decimalMultiplyTechnique(left, right, answer),
       kind,
       distractors: [answer + 0.2, answer - 0.2, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
@@ -677,7 +1038,7 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer: formatDecimal(answer),
       difficulty,
       tags: ["decimals", "subtraction"],
-      mentalCost: mc({ kind: "decimal-subtract", whole, fraction }),
+      costTemplates: ct({ kind: "decimal-subtract", whole, fraction }),
       technique: decimalSubtractTechnique(whole, fraction, answer),
       kind,
       distractors: [answer + 0.1, answer - 0.1, whole + fraction, Math.max(0, answer - 1)].map(formatDecimal),
