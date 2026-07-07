@@ -61,6 +61,7 @@
 .practiceColumn {
   display: grid;
   gap: var(--space-md);
+  min-width: 0;
 }
 
 .sidePanel {
@@ -112,25 +113,9 @@
   margin: 0;
 }
 
-.sideExit {
-  border-top: 1px dashed var(--color-border);
-  display: grid;
-  gap: 0.65rem;
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
-}
-
-.sideExitButton {
-  width: 100%;
-}
-
-@media (max-width: 900px) {
+@media (max-width: 1080px) {
   .practiceLayout {
     grid-template-columns: 1fr;
-  }
-
-  .sideExit {
-    display: none;
   }
 }
 

@@ -7,7 +7,7 @@ import {
   simplifyFraction,
   type Fraction,
 } from "../fractionMath";
-import type { GenerateQuestionInput, Question, QuestionKind } from "../types";
+import type { GenerateQuestionInput, Question } from "../types";
 import {
   createQuestionId,
   formatDecimal,
@@ -226,7 +226,7 @@ function appendDecimalOperation(question: Question, currentValue: number): Quest
 
   const baseExpr = stripPromptSuffix(question.prompt);
   const existing = question.costTemplates ?? [];
-  const { min, max } = operandRange(question.difficulty);
+  const { max } = operandRange(question.difficulty);
 
   const builders: AppendBuilder[] = [
     () => {
@@ -368,7 +368,7 @@ export function appendPowersStep(question: Question, input?: GenerateQuestionInp
   return appendIntegerOperation(question, value, input);
 }
 
-export function appendFractionStep(question: Question, input?: GenerateQuestionInput): Question | undefined {
+export function appendFractionStep(question: Question, _input?: GenerateQuestionInput): Question | undefined {
   const left = parseFractionAnswer(question.answer);
   if (left) {
     return appendFractionOperation(question, left);

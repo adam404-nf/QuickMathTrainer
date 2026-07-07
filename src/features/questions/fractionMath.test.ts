@@ -24,7 +24,7 @@ describe("fractionMath", () => {
     const rejected = unlikeDenomBaseCost({ num: 1, den: 7 }, { num: 1, den: 17 });
 
     expect(small).toBeGreaterThan(2);
-    expect(small).toBeLessThan(5);
+    expect(small).toBeLessThan(8);
     expect(medium).toBeGreaterThanOrEqual(small);
     expect(rejected).toBe(0);
   });

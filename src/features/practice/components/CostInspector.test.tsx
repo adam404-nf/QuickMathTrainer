@@ -41,4 +41,15 @@ describe("CostInspector", () => {
     expect(screen.getByText("記憶成本")).toBeInTheDocument();
     expect(screen.getByText("+0.3")).toBeInTheDocument();
   });
+
+  it("shows each numeric step with its actual expression and cost", async () => {
+    const user = userEvent.setup();
+    render(<CostInspector question={question} />);
+
+    await user.click(screen.getByRole("button", { name: /Cost/ }));
+
+    expect(screen.getByText("7 + 5 = 12")).toBeInTheDocument();
+    expect(screen.getByText("12 × 6 = 72")).toBeInTheDocument();
+    expect(screen.getAllByText(/cost:/).length).toBeGreaterThanOrEqual(2);
+  });
 });

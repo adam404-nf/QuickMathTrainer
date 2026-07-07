@@ -396,26 +396,18 @@ export function PracticePage() {
                     </div>
                   </dl>
                 ) : (
-                  <>
-                    <dl className={styles.historyStats}>
-                      <div>
-                        <dt>目前題號</dt>
-                        <dd>
-                          {practice.viewIndex + 1} / {session.preferences.questionLimit}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>已答</dt>
-                        <dd>{session.attempts.length}</dd>
-                      </div>
-                    </dl>
-                    <div className={styles.sideExit}>
-                      <p className={styles.sideHint}>測驗進行中也可返回首頁。</p>
-                      <Button className={styles.sideExitButton} onClick={handleGoHome} variant="secondary">
-                        返回首頁
-                      </Button>
+                  <dl className={styles.historyStats}>
+                    <div>
+                      <dt>目前題號</dt>
+                      <dd>
+                        {practice.viewIndex + 1} / {session.preferences.questionLimit}
+                      </dd>
                     </div>
-                  </>
+                    <div>
+                      <dt>已答</dt>
+                      <dd>{session.attempts.length}</dd>
+                    </div>
+                  </dl>
                 )}
               </Card>
 

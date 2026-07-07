@@ -1,20 +1,19 @@
 import {
   calculateCost,
   calculateQuestionCost,
-  describeCost,
   DECIMAL_TO_FRACTION_COST_SCALE,
   FRACTION_TO_DECIMAL_COST_SCALE,
   fractionSimplificationCost,
-  integerDivideInternalCost,
+  fractionToDecimalInternalCost,
   MULTI_STEP_COORDINATION_COST,
   type CostNode,
   type FractionOperation,
   type IntegerOperation,
 } from "./costModel";
 import type { Fraction } from "./fractionMath";
-import { lcm } from "./fractionMath";
+import { formatFraction, lcm, simplifyFraction } from "./fractionMath";
 import type { MentalCost } from "./types";
-import { countSignificantDigits, normalizeAnswer } from "./utils";
+import { countSignificantDigits, formatDecimal, normalizeAnswer } from "./utils";
 
 export type CalculationTemplateKind =
   | "integer-add"
@@ -168,7 +167,11 @@ export function costForTemplateSpec(spec: CalculationTemplateSpec): number {
     return fractionSimplificationCost(spec.numerator, spec.denominator) * DECIMAL_TO_FRACTION_COST_SCALE;
   }
   if (spec.kind === "fraction-to-decimal-explicit") {
-    return integerDivideInternalCost(spec.numerator, spec.denominator) * FRACTION_TO_DECIMAL_COST_SCALE;
+    return fractionToDecimalInternalCost(spec.numerator, spec.denominator) * FRACTION_TO_DECIMAL_COST_SCALE;
+  }
+  if (spec.kind === "fraction-to-decimal") {
+    // 舊版 1/den：同樣以補零長除法計算，與 explicit 版保持一致尺度。
+    return fractionToDecimalInternalCost(1, spec.denominator) * FRACTION_TO_DECIMAL_COST_SCALE;
   }
   return calculateCost(costNodeFromCalculationTemplate(spec));
 }
@@ -226,8 +229,144 @@ export function calculateMentalCost(
 
 export interface CostStepDescription {
   label: string;
+  /** 該步驟以實際數字呈現的算式（含結果），例如 "1 + 2 = 3"。 */
+  expression: string;
   internalCost: number;
   effectiveCost: number;
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : formatDecimal(value);
+}
+
+function fractionOpResult(op: "+" | "−" | "×" | "÷", left: Fraction, right: Fraction): Fraction {
+  if (op === "+") {
+    return simplifyFraction({ num: left.num * right.den + right.num * left.den, den: left.den * right.den });
+  }
+  if (op === "−") {
+    return simplifyFraction({ num: left.num * right.den - right.num * left.den, den: left.den * right.den });
+  }
+  if (op === "×") {
+    return simplifyFraction({ num: left.num * right.num, den: left.den * right.den });
+  }
+  return simplifyFraction({ num: left.num * right.den, den: left.den * right.num });
+}
+
+/**
+ * 產生每一步「以實際數字進行」的算式與分類標籤，供過程顯示使用。
+ * 目的是讓 breakdown 直接看到 `1/2 + 1/3 = 5/6` 這類含數字與結果的步驟，
+ * 而非僅有抽象的 chunk 名稱。
+ */
+function describeStep(spec: CalculationTemplateSpec): { label: string; expression: string } {
+  switch (spec.kind) {
+    case "integer-add":
+      return { label: "integer-add", expression: `${spec.a} + ${spec.b} = ${spec.a + spec.b}` };
+    case "integer-subtract":
+      return { label: "integer-subtract", expression: `${spec.a} − ${spec.b} = ${spec.a - spec.b}` };
+    case "integer-multiply":
+      return { label: "integer-multiply", expression: `${spec.a} × ${spec.b} = ${spec.a * spec.b}` };
+    case "integer-divide":
+      return {
+        label: "integer-divide",
+        expression: `${spec.dividend} ÷ ${spec.divisor} = ${formatNumber(spec.dividend / spec.divisor)}`,
+      };
+    case "absolute-value":
+      return { label: "absolute-value", expression: "|…|" };
+    case "square":
+      return { label: "power", expression: `${spec.n}² = ${spec.n ** 2}` };
+    case "cube":
+      return { label: "power", expression: `${spec.n}³ = ${spec.n ** 3}` };
+    case "fourth-power":
+      return { label: "power", expression: `${spec.n}⁴ = ${spec.n ** 4}` };
+    case "square-root":
+      return { label: "root", expression: `√${spec.radicand} = ${formatNumber(Math.sqrt(spec.radicand))}` };
+    case "cube-root":
+      return { label: "root", expression: `³√${spec.root ** 3} = ${spec.root}` };
+    case "fourth-root":
+      return { label: "root", expression: `⁴√${spec.root ** 4} = ${spec.root}` };
+    case "symbolic-simplify":
+      return { label: "symbolic-simplify", expression: "符號化簡" };
+    case "fraction-same-denom": {
+      const f: Fraction = { num: 1, den: spec.denominator };
+      return {
+        label: "fraction-add",
+        expression: `${formatFraction(f)} + ${formatFraction(f)} = ${formatFraction(fractionOpResult("+", f, f))}`,
+      };
+    }
+    case "fraction-unlike-denom":
+      return {
+        label: "fraction-add",
+        expression: `${formatFraction(spec.left)} + ${formatFraction(spec.right)} = ${formatFraction(fractionOpResult("+", spec.left, spec.right))}`,
+      };
+    case "fraction-multiply":
+      return {
+        label: "fraction-multiply",
+        expression: `${formatFraction(spec.left)} × ${formatFraction(spec.right)} = ${formatFraction(fractionOpResult("×", spec.left, spec.right))}`,
+      };
+    case "fraction-divide":
+      return {
+        label: "fraction-divide",
+        expression: `${formatFraction(spec.left)} ÷ ${formatFraction(spec.right)} = ${formatFraction(fractionOpResult("÷", spec.left, spec.right))}`,
+      };
+    case "fraction-to-decimal":
+      return {
+        label: "fraction-to-decimal",
+        expression: `1/${spec.denominator} = ${formatNumber(1 / spec.denominator)}`,
+      };
+    case "fraction-to-decimal-explicit":
+      return {
+        label: "fraction-to-decimal",
+        expression: `${spec.numerator}/${spec.denominator} = ${formatNumber(spec.numerator / spec.denominator)}`,
+      };
+    case "decimal-to-fraction":
+      return {
+        label: "decimal-to-fraction",
+        expression: `${formatNumber(spec.decimal)} = ${spec.numerator}/${spec.denominator} = ${formatFraction(simplifyFraction({ num: spec.numerator, den: spec.denominator }))}`,
+      };
+    case "decimal-square":
+      return { label: "power", expression: `${formatNumber(spec.decimal)}² = ${formatNumber(spec.decimal ** 2)}` };
+    case "decimal-add":
+      return {
+        label: "decimal-add",
+        expression: `${formatNumber(spec.left)} + ${formatNumber(spec.right)} = ${formatNumber(spec.left + spec.right)}`,
+      };
+    case "decimal-subtract":
+      return {
+        label: "decimal-subtract",
+        expression: `${formatNumber(spec.whole)} − ${formatNumber(spec.fraction)} = ${formatNumber(spec.whole - spec.fraction)}`,
+      };
+    case "decimal-multiply":
+      return {
+        label: "decimal-multiply",
+        expression: `${formatNumber(spec.decimal)} × ${spec.integer} = ${formatNumber(spec.decimal * spec.integer)}`,
+      };
+    case "decimal-fraction-add":
+    case "decimal-fraction-subtract":
+    case "decimal-fraction-multiply":
+    case "decimal-fraction-divide": {
+      const opLabel = {
+        "decimal-fraction-add": "fraction-add",
+        "decimal-fraction-subtract": "fraction-subtract",
+        "decimal-fraction-multiply": "fraction-multiply",
+        "decimal-fraction-divide": "fraction-divide",
+      }[spec.kind];
+      const fractionValue = spec.fraction.num / spec.fraction.den;
+      const numericResult =
+        spec.op === "+"
+          ? spec.decimal + fractionValue
+          : spec.op === "−"
+            ? spec.decimal - fractionValue
+            : spec.op === "×"
+              ? spec.decimal * fractionValue
+              : spec.decimal / fractionValue;
+      return {
+        label: opLabel,
+        expression: `${formatNumber(spec.decimal)} ${spec.op} ${formatFraction(spec.fraction)} = ${formatNumber(numericResult)}`,
+      };
+    }
+    default:
+      return { label: "sum", expression: "" };
+  }
 }
 
 export interface MentalCostDescription {
@@ -245,26 +384,24 @@ export function describeMentalCost(
   templates: readonly CalculationTemplateSpec[],
   answer = "",
 ): MentalCostDescription {
-  const nodes = costNodesFromTemplates(templates);
-  const steps: CostStepDescription[] = nodes.map((node) => {
-    const { effectiveCost, breakdown } = describeCost(node);
-    const first = breakdown[0];
-    return {
-      label: first?.label ?? node.kind,
-      internalCost: first?.internalCost ?? effectiveCost,
-      effectiveCost,
-    };
+  // 每步 effective cost 直接取自 costForTemplateSpec，確保與實際 mentalCost 同源
+  // （含分數↔小數換算的特殊計算），避免過程各步加總對不上總 cost。
+  const steps: CostStepDescription[] = templates.map((spec) => {
+    const effectiveCost = costForTemplateSpec(spec);
+    const { label, expression } = describeStep(spec);
+    return { label, expression, internalCost: effectiveCost, effectiveCost };
   });
 
   const memoryCost = memoryCostForAnswer(answer);
-  const mentalCost = calculateQuestionCost(nodes) + memoryCost;
   const stepsCost = steps.reduce((sum, step) => sum + step.effectiveCost, 0);
+  const coordinationOverhead = Math.max(0, templates.length - 1) * MULTI_STEP_COORDINATION_COST;
+  const mentalCost = stepsCost + coordinationOverhead + memoryCost;
 
   return {
     templates,
     steps,
     stepsCost,
-    coordinationOverhead: mentalCost - stepsCost - memoryCost,
+    coordinationOverhead,
     memoryCost,
     mentalCost,
   };

@@ -4,14 +4,22 @@ import {
   calculateQuestionCost,
   CHUNK_CONSTANTS,
   fractionCost,
+  fractionToDecimalInternalCost,
   integerCost,
+  integerDivideInternalCost,
   isTwoDigitMultiply,
   lcmTierMultiplier,
   MULTI_STEP_COORDINATION_COST,
   TWO_DIGIT_MULTIPLY_BONUS,
   type CostNode,
 } from "./costModel";
-import { calculateMentalCost, mcNodes, memoryCostForAnswer } from "./calculationTemplates";
+import {
+  calculateMentalCost,
+  costForTemplateSpec,
+  describeMentalCost,
+  mcNodes,
+  memoryCostForAnswer,
+} from "./calculationTemplates";
 import {
   classifyCostBand,
   costRangeForDifficulty,
@@ -70,7 +78,7 @@ describe("fraction chunk calibration", () => {
   it("1/2+1/3 stays in easy range", () => {
     const cost = fractionCost("add", { num: 1, den: 2 }, { num: 1, den: 3 });
     expect(cost).toBeGreaterThanOrEqual(1.5);
-    expect(cost).toBeLessThanOrEqual(6);
+    expect(cost).toBeLessThanOrEqual(8);
   });
 
   it("23/56+31/75 reflects large LCM and two-digit expansion", () => {
@@ -82,8 +90,59 @@ describe("fraction chunk calibration", () => {
   });
 
   it("uses configured chunk constants", () => {
-    expect(CHUNK_CONSTANTS.fractionAdd).toBe(0.7);
+    expect(CHUNK_CONSTANTS.fractionAdd).toBe(0.9);
     expect(TWO_DIGIT_MULTIPLY_BONUS).toBe(1.25);
+  });
+});
+
+describe("fraction-to-decimal long division cost", () => {
+  it("costs more than 1 because long division needs zero padding", () => {
+    // 舊版 1/11 會被當成「除數 > 被除數」而回傳 1，明顯低估。
+    expect(fractionToDecimalInternalCost(1, 11)).toBeGreaterThan(1);
+  });
+
+  it("uses the enlarged dividend (100 ÷ 11) plus the padding steps", () => {
+    // 1/11 需補兩個零 → 實際是 100 ÷ 11 的長除法。
+    expect(fractionToDecimalInternalCost(1, 11)).toBe(integerDivideInternalCost(100, 11) + 2);
+  });
+
+  it("repeating fractions cost more than quick terminating ones", () => {
+    expect(fractionToDecimalInternalCost(1, 11)).toBeGreaterThan(fractionToDecimalInternalCost(1, 2));
+  });
+
+  it("flows through the fraction-to-decimal-explicit template cost", () => {
+    expect(costForTemplateSpec({ kind: "fraction-to-decimal-explicit", numerator: 1, denominator: 11 })).toBe(
+      fractionToDecimalInternalCost(1, 11),
+    );
+  });
+});
+
+describe("cost breakdown expressions", () => {
+  it("lists each numeric step with its actual expression and cost", () => {
+    const description = describeMentalCost(
+      [
+        { kind: "integer-add", a: 1, b: 2 },
+        { kind: "integer-multiply", a: 3, b: 4 },
+      ],
+      "12",
+    );
+
+    expect(description.steps.map((step) => step.expression)).toEqual(["1 + 2 = 3", "3 × 4 = 12"]);
+    for (const step of description.steps) {
+      expect(step.effectiveCost).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps per-step costs consistent with the total mental cost", () => {
+    const templates = [
+      { kind: "fraction-to-decimal-explicit", numerator: 1, denominator: 8 },
+      { kind: "decimal-add", left: 0.125, right: 0.5 },
+    ] as const;
+    const description = describeMentalCost(templates, "0.625");
+    expect(description.stepsCost + description.coordinationOverhead + description.memoryCost).toBeCloseTo(
+      description.mentalCost,
+    );
+    expect(description.mentalCost).toBeCloseTo(calculateMentalCost(templates, "0.625"));
   });
 });
 

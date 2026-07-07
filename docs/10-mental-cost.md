@@ -90,16 +90,20 @@ LCMChunk
 
 ### 3.3 Compression Constants（第一版）
 
-| Chunk kind | Constant |
+> **v2 校準**：分數相關 chunk 常數整體調高，讓分數運算的整體 cost 更貼近真實心智負擔
+> （通分／擴分／分子運算／約分多環節疊加）。主要調大四個分數運算常數，內部子 chunk
+> （ExpandFraction / GCD / FractionSimplification）僅微調，避免多層相乘後成本過度膨脹。
+
+| Chunk kind | Constant（v1 → v2） |
 |---|---|
 | IntegerChunk | 1.00 |
-| ExpandFractionChunk | 0.30 |
-| GCDChunk | 0.35 |
-| FractionSimplificationChunk | 0.45 |
-| FractionAddChunk | 0.70 |
-| FractionSubtractChunk | 0.70 |
-| FractionMultiplyChunk | 0.55 |
-| FractionDivideChunk | 0.65 |
+| ExpandFractionChunk | 0.30 → **0.35** |
+| GCDChunk | 0.35 → **0.40** |
+| FractionSimplificationChunk | 0.45 → **0.50** |
+| FractionAddChunk | 0.70 → **0.90** |
+| FractionSubtractChunk | 0.70 → **0.90** |
+| FractionMultiplyChunk | 0.55 → **0.70** |
+| FractionDivideChunk | 0.65 → **0.85** |
 | AbsoluteValueChunk | 0.80 |
 | PowerChunk / RootChunk | 0.75 |
 
@@ -131,8 +135,8 @@ effectiveCost × 1.25
 | `decimal-multiply` | IntegerChunk | 小數 × 整數：`round(decimal×10) × integer` 的整數乘法 |
 | `decimal-square` | PowerChunk（`exponent = 2`） | 小數 `d` 寫成 `n/10ᵏ`，以 `n²` 的平方 chunk 計算（與整數 `square` 同模型） |
 | `decimal-fraction-add` / `-subtract` / `-multiply` / `-divide` | FractionChunk | 小數與分數混合四則：以對應 Fraction 運算 chunk 計 |
-| `fraction-to-decimal` | IntegerChunk（`1 ÷ den`） | 舊版分數轉小數 |
-| `fraction-to-decimal-explicit` | `integerDivideInternalCost(num, den) × FRACTION_TO_DECIMAL_COST_SCALE` | 分數→小數：理解為一次「分子 ÷ 分母」的除法，cost 參考除法計算 |
+| `fraction-to-decimal` | `fractionToDecimalInternalCost(1, den) × FRACTION_TO_DECIMAL_COST_SCALE` | 舊版分數轉小數，改用補零長除法計 |
+| `fraction-to-decimal-explicit` | `fractionToDecimalInternalCost(num, den) × FRACTION_TO_DECIMAL_COST_SCALE` | 分數→小數：長除法需對被除數補零（真分數如 `1/11` 實際是 `100 ÷ 11`），以「補零後的被除數 ÷ 除數」加上補零步驟計，避免 num<den 被低估成 1 |
 | `decimal-to-fraction` | `fractionSimplificationCost(num, den) × DECIMAL_TO_FRACTION_COST_SCALE` | 小數→分數：理解為一次約分（如 `0.375 = 375/1000` 再約分），cost 參考分數約分計算 |
 
 **換算 cost 常數（可調，用來平衡 cost）**
@@ -141,8 +145,10 @@ effectiveCost × 1.25
 
 | 常數 | 目前值 | 計算基礎 |
 |---|---|---|
-| `FRACTION_TO_DECIMAL_COST_SCALE` | **1.0** | 分數→小數：`integerDivideInternalCost`（分子 ÷ 分母） |
+| `FRACTION_TO_DECIMAL_COST_SCALE` | **1.0** | 分數→小數：`fractionToDecimalInternalCost`（補零後的被除數 ÷ 除數 ＋ 補零步驟） |
 | `DECIMAL_TO_FRACTION_COST_SCALE` | **1.0** | 小數→分數：`fractionSimplificationCost`（寫成 `p/10ⁿ` 再約分） |
+
+> **範例**：`1/11` 需補兩個零 → 以 `100 ÷ 11` 的長除法（成本 10）＋ 2 個補零步驟 = **12**，遠高於舊版固定的 1。
 
 兩者以 `const` 定義於 [`costModel.ts`](../src/features/questions/costModel.ts)。若日後需微調平衡，可調整常數；但**禁止**為了讓個別題目落進 difficulty range 而動態調參，達標須靠 reroll 較小數字、append 步驟或換 template。
 

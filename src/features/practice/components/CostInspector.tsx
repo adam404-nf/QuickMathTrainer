@@ -13,6 +13,11 @@ const STEP_LABELS: Record<string, string> = {
   "fraction-subtract": "分數減法",
   "fraction-multiply": "分數乘法",
   "fraction-divide": "分數除法",
+  "fraction-to-decimal": "分數轉小數",
+  "decimal-to-fraction": "小數轉分數",
+  "decimal-add": "小數加法",
+  "decimal-subtract": "小數減法",
+  "decimal-multiply": "小數乘法",
   power: "冪次",
   root: "開方",
   "absolute-value": "絕對值",
@@ -73,9 +78,14 @@ export function CostInspector({ question }: CostInspectorProps) {
               <ul className={styles.costStepList}>
                 {description.steps.map((step, index) => (
                   <li className={styles.costStep} key={`${step.label}-${index}`}>
-                    <span className={styles.costStepName}>{stepLabel(step.label)}</span>
+                    <span className={styles.costStepName}>
+                      {stepLabel(step.label)}
+                      {step.expression ? (
+                        <span className={styles.costStepExpr}> {step.expression}</span>
+                      ) : null}
+                    </span>
                     <span className={styles.costStepValue}>
-                      內部 {formatCost(step.internalCost)} → {formatCost(step.effectiveCost)}
+                      cost: {formatCost(step.effectiveCost)}
                     </span>
                   </li>
                 ))}

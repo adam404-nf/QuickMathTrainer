@@ -15,13 +15,16 @@ export type CostNode =
 
 export const CHUNK_CONSTANTS = {
   integer: 1.0,
-  expandFraction: 0.3,
-  gcd: 0.35,
-  fractionSimplification: 0.45,
-  fractionAdd: 0.7,
-  fractionSubtract: 0.7,
-  fractionMultiply: 0.55,
-  fractionDivide: 0.65,
+  // 分數相關 chunk 常數整體調高，讓分數運算的整體 cost 更貼近其真實心智負擔
+  // （通分、擴分、分子運算、約分等多環節疊加），避免分數題被系統性低估。
+  // 主要調大四個分數運算常數，內部子 chunk 只微調以免多層相乘後過度膨脹。
+  expandFraction: 0.35,
+  gcd: 0.4,
+  fractionSimplification: 0.5,
+  fractionAdd: 0.9,
+  fractionSubtract: 0.9,
+  fractionMultiply: 0.7,
+  fractionDivide: 0.85,
   absoluteValue: 0.8,
   power: 0.75,
   root: 0.75,
@@ -35,7 +38,7 @@ export const MULTI_STEP_COORDINATION_COST = 1;
 
 /**
  * 分數→小數換算 chunk 乘數（可調常數，用來平衡 cost；目前設為 1）。
- * 分數轉小數理解為一次「分子 ÷ 分母」的除法，cost 參考除法計算。
+ * 分數轉小數以「補零後的被除數 ÷ 分母」的長除法成本計算（見 fractionToDecimalInternalCost）。
  */
 export const FRACTION_TO_DECIMAL_COST_SCALE = 1.0;
 /**
@@ -197,6 +200,28 @@ export function integerDivideInternalCost(dividend: number, divisor: number): nu
   }
 
   return Math.max(1, cost);
+}
+
+/**
+ * 分數→小數的長除法成本。
+ *
+ * 為何不直接用 integerDivideInternalCost(num, den)：真分數（num < den）如 1/11 會被
+ * 當成「除數大於被除數」而回傳 1，嚴重低估。實際長除法必須先在被除數後補零，
+ * 例如 1/11 其實是算 100 ÷ 11、1/4 是算 10 ÷ 4。補零會放大被除數、增加位數與運算量，
+ * 因此改以「補零後的被除數 ÷ 除數」估算，並額外計入每個補零（帶下一位）的心智動作。
+ */
+export function fractionToDecimalInternalCost(numerator: number, denominator: number): number {
+  const absDen = Math.abs(denominator);
+  if (absDen <= 1) return 0;
+
+  let paddedDividend = Math.abs(numerator);
+  let padZeros = 0;
+  while (paddedDividend < absDen) {
+    paddedDividend *= 10;
+    padZeros += 1;
+  }
+
+  return integerDivideInternalCost(paddedDividend, absDen) + padZeros;
 }
 
 export function integerInternalCost(operation: IntegerOperation, a: number, b: number): number {
