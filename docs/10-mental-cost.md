@@ -122,13 +122,26 @@ effectiveCost × 1.25
 
 ---
 
-## 4. 多步驟題目
+## 4. 多步驟題目與 Memory Cost
 
-一道題若包含多個 Chunk，總 cost 為各 Chunk effective cost 之和，再加上多步驟協調成本：
+一道題若包含多個 Chunk，總 cost 為各 Chunk effective cost 之和，再加上多步驟協調成本與答案記憶成本：
 
 ```text
-questionCost = Σ chunkCost + max(0, stepCount - 1) × 1
+questionCost = Σ chunkCost + max(0, stepCount - 1) × 1 + memoryCost(answer)
 ```
+
+### 4.1 Memory Cost
+
+答案算完後，依「最後需要在腦中暫存的答案型態」計算 `memoryCost(answer)`：
+
+| 答案型別 | 規則 | cost |
+|---|---|---|
+| 整數 | 先取絕對值，再看十進位位數 | 1 位 → `0.1`；2 位 → `0.3`；3 位 → `0.8`；4 位以上 → `1` |
+| 小數 | 看有效數字個數（忽略前導 0 與小數點） | 1 位 → `0.1`；2 位 → `0.3`；3 位 → `0.8`；4 位以上 → `1` |
+| 分數 | 一律固定 | `1` |
+| 符號答案 | 如 `|x|` | `0.1` |
+
+範例：`7 → 0.1`、`42 → 0.3`、`350 → 0.8`、`1234 → 1`、`0.125 → 0.8`、`3/4 → 1`。
 
 ---
 
@@ -138,26 +151,51 @@ questionCost = Σ chunkCost + max(0, stepCount - 1) × 1
 
 | difficulty | cost range |
 |---|---|
-| easy | **8–15** |
-| medium | **12–20** |
-| hard | **15–30** |
+| easy | **8–12** |
+| medium | **10–15** |
+| hard | **13–18** |
+| extreme | **17–28** |
 
 > 全域範圍定義於 `mentalCost.ts` 的 `DIFFICULTY_COST_RANGES` 與 `costRangeForDifficulty()`。
 
-所有模式（arithmetic / fractions / powers / mixed / weakness-focused）皆**強制**題目 cost 落在該難度的 range 內才可使用，**任何情況都不得放寬 difficulty range**。
+所有模式（arithmetic / fractions / powers / mixed / weakness-focused）皆**強制**題目 cost 落在該難度的 range 內才可使用，**任何情況都不得放寬 difficulty range**。生成時會先依 difficulty 的子區間權重抽一個 target band，再在該 band 內找題。
+
+### 5.1 難度分佈（加權子區間）
+
+邊界採 **左閉右開**；只有每個 difficulty 的最後一段包含上界。
+
+- `easy`（8–12）
+  - `8–9`: 30%
+  - `9–10`: 50%
+  - `10–11.5`: 15%
+  - `11.5–12`: 5%
+- `medium`（10–15）
+  - `10–12`: 30%
+  - `12–14`: 50%
+  - `14–15`: 20%
+- `hard`（13–18）
+  - `13–15`: 20%
+  - `15–17`: 60%
+  - `17–18`: 20%
+- `extreme`（17–28）
+  - `17–20`: 15%
+  - `20–23`: 15%
+  - `23–25`: 40%
+  - `25–28`: 40%
 
 powers 等天生 cost 偏低的題型（平方、根號以記憶提取為主），透過**多步冪次複合題**（如 `a² + b²`、`a² + c`）以較大的 base 與多步驟協調成本（見 §4 的 `max(0, stepCount - 1) × 1`）把 cost 抬升進入與其他題型相同的 range，而不是替 powers 另設一套較低的範圍。
 
-### 5.1 生成策略
+### 5.2 生成策略
 
 1. 抽 difficulty → 取得**全域** target cost range（不分題型）。
-2. 生成 base template → 計算 cost。
-3. cost 在 range 內 → 使用題目。
-4. cost 太低 → 持續追加 compatible template（整數／分數／冪次步驟），直到 cost 進入 range；步驟數量沒有硬性上限。
-5. cost 太高 → **保留 template 結構、重抽較小的數字**，讓 cost 落回範圍（而非放寬 range）。
-6. 同一 template 重試 N 次仍失敗 → 換另一個 template 再試；**在任何步驟都不得放寬 difficulty range**。
+2. 依 difficulty 的權重分佈抽出一個 target band。
+3. 生成 base template → 計算 cost（含 memory cost）。
+4. cost 在 target band 內 → 使用題目。
+5. cost 太低 → 持續追加 compatible template（整數／分數／冪次步驟），直到 cost 進入 target band；步驟數量沒有硬性上限。
+6. cost 太高 → **保留 template 結構、重抽較小的數字**，讓 cost 落回範圍（而非放寬 range）。
+7. 同一 template 重試 N 次仍失敗 → 換另一個 template 再試；**在任何步驟都不得放寬 difficulty range**。
 
-### 5.2 題型數量上限（mixed / weakness-focused）
+### 5.3 題型數量上限（mixed / weakness-focused）
 
 為避免高 cost 題型（如分數）壟斷整份練習，混合模式下每個題型有數量上限：
 
@@ -181,6 +219,7 @@ cap = ceil(questionLimit / eligibleTypeCount) + 1
 
 - Atomic：`3+4`、`25+36`、`34-19`
 - Fraction：`1/2+1/3` 落在 easy 範圍；大 LCM 分數加減明顯高於簡單題
-- 生成：各難度產題 cost 大部分落在「該題型 × 該難度」的 range
-- 單一題型 hard 模式不會出現低於下限的簡單題（arithmetic ≥ 15、fractions ≥ 16）
+- Memory Cost：整數／小數有效數字／分數都符合對應分級
+- 生成：每種難度、每種專項訓練題型的 cost 都必須落在該難度 range 內
+- 分佈：每種難度、每種專項訓練題型的 band 分佈偏差不超過 `±5%`
 - mixed 模式下已達上限的題型不會再出題

@@ -5,6 +5,23 @@ import { getQuizPreferences, getQuickPracticePreferences, HomePage } from "../..
 import { defaultPracticePreferences } from "../../features/settings/preferences";
 
 describe("HomePage", () => {
+  it("shows the extreme difficulty option", () => {
+    render(
+      <HomePage
+        onDifficultyChange={vi.fn()}
+        onOpenWeakness={vi.fn()}
+        onQuickPracticeTypeChange={vi.fn()}
+        onSessionLengthChange={vi.fn()}
+        onStartQuickPractice={vi.fn()}
+        onStartQuiz={vi.fn()}
+        preferences={defaultPracticePreferences}
+        quickPracticeType="fractions"
+      />,
+    );
+
+    expect(screen.getByRole("option", { name: "極限" })).toBeInTheDocument();
+  });
+
   it("starts quick practice for the selected question type", async () => {
     const user = userEvent.setup();
     const onStartQuickPractice = vi.fn();

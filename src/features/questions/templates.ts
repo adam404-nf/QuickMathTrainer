@@ -93,7 +93,7 @@ function makeQuestion(params: {
     options: withOptions(params.answer, params.distractors, params.kind),
     difficulty: params.difficulty,
     tags: params.tags,
-    mentalCost: calculateMentalCost(params.costTemplates),
+    mentalCost: calculateMentalCost(params.costTemplates, params.answer),
     costTemplates: params.costTemplates,
     technique: params.technique,
   };
@@ -120,12 +120,11 @@ function unlikeDenominatorQuestion(
     const common = lcm(left.den, right.den);
     const template: CalculationTemplateSpec = { kind: "fraction-unlike-denom", left, right };
     const costTemplates = ct(template);
-    if (calculateMentalCost(costTemplates) < 2) continue;
-
     const leftNum = left.num * (common / left.den);
     const rightNum = right.num * (common / right.den);
     const resultNum = op === "+" ? leftNum + rightNum : leftNum - rightNum;
     const answer = formatFraction({ num: resultNum, den: common });
+    if (calculateMentalCost(costTemplates, answer) < 2) continue;
     const opSymbol = op === "+" ? "+" : "−";
 
     return makeQuestion({
@@ -427,6 +426,7 @@ const squarePlusIntTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     easy: { aMin: 6, aMax: 10, cMin: 4, cMax: 45 },
     medium: { aMin: 11, aMax: 15, cMin: 10, cMax: 60 },
     hard: { aMin: 13, aMax: 18, cMin: 20, cMax: 90 },
+    extreme: { aMin: 16, aMax: 22, cMin: 35, cMax: 140 },
   }[difficulty];
   const a = randomInt(range.aMin, range.aMax);
   const c = randomInt(range.cMin, range.cMax);
@@ -460,6 +460,7 @@ const twoSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     easy: { min: 6, max: 10 },
     medium: { min: 8, max: 12 },
     hard: { min: 12, max: 19 },
+    extreme: { min: 15, max: 22 },
   }[difficulty];
   let a = randomInt(range.min, range.max);
   let b = randomInt(range.min, range.max);
@@ -504,6 +505,7 @@ const threeSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     easy: { min: 5, max: 9 },
     medium: { min: 7, max: 11 },
     hard: { min: 9, max: 15 },
+    extreme: { min: 12, max: 18 },
   }[difficulty];
   const a = randomInt(range.min, range.max);
   const b = randomInt(range.min, range.max);
@@ -609,6 +611,7 @@ const fourthComposite: QuestionTemplate = ({ difficulty, kind }) => {
     easy: { aMin: 2, aMax: 4, cMin: 5, cMax: 40 },
     medium: { aMin: 2, aMax: 5, cMin: 10, cMax: 90 },
     hard: { aMin: 3, aMax: 5, cMin: 20, cMax: 90 },
+    extreme: { aMin: 4, aMax: 6, cMin: 40, cMax: 180 },
   }[difficulty];
   const a = randomInt(range.aMin, range.aMax);
   const power = a ** 4;
@@ -914,6 +917,7 @@ const decimalCompositeTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     easy: { min: 3, max: 9 },
     medium: { min: 11, max: 29 },
     hard: { min: 20, max: 29 },
+    extreme: { min: 24, max: 40 },
   }[difficulty];
   const left = randomInt(1, 9) / 10;
   const right = randomInt(1, 9) / 10;

@@ -35,7 +35,7 @@ interface CostInspectorProps {
 export function CostInspector({ question }: CostInspectorProps) {
   const [open, setOpen] = useState(false);
 
-  const description = describeMentalCost(question.costTemplates ?? []);
+  const description = describeMentalCost(question.costTemplates ?? [], question.answer);
   const range = costRangeForDifficulty(question.difficulty);
   const inRange = matchesMentalCostBucket(question.mentalCost, range);
 
@@ -84,6 +84,12 @@ export function CostInspector({ question }: CostInspectorProps) {
                 <div className={styles.costSummaryRow}>
                   <span>多步驟協調成本</span>
                   <span>+{formatCost(description.coordinationOverhead)}</span>
+                </div>
+              ) : null}
+              {description.memoryCost > 0.05 ? (
+                <div className={styles.costSummaryRow}>
+                  <span>記憶成本</span>
+                  <span>+{formatCost(description.memoryCost)}</span>
                 </div>
               ) : null}
             </>

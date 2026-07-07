@@ -34,6 +34,7 @@ const THRESHOLDS_BY_DIFFICULTY: Record<Difficulty, Thresholds> = {
   easy: { minAccuracy: 0.9, maxAverageTimeMs: 5000 },
   medium: { minAccuracy: 0.8, maxAverageTimeMs: 8000 },
   hard: { minAccuracy: 0.7, maxAverageTimeMs: 12000 },
+  extreme: { minAccuracy: 0.65, maxAverageTimeMs: 15000 },
 };
 
 const MIN_SAMPLE_COUNT = 2;

@@ -11,8 +11,14 @@ import {
   TWO_DIGIT_MULTIPLY_BONUS,
   type CostNode,
 } from "./costModel";
-import { calculateMentalCost, mcNodes } from "./calculationTemplates";
-import { costRangeForDifficulty, matchesMentalCostBucket } from "./mentalCost";
+import { calculateMentalCost, mcNodes, memoryCostForAnswer } from "./calculationTemplates";
+import {
+  classifyCostBand,
+  costRangeForDifficulty,
+  DIFFICULTY_COST_DISTRIBUTIONS,
+  matchesMentalCostBucket,
+  sampleCostDistributionBand,
+} from "./mentalCost";
 import { generateQuestion } from "./registry";
 import type { Difficulty, Question } from "./types";
 
@@ -98,6 +104,28 @@ describe("question cost aggregation", () => {
     expect(calculateQuestionCost(nodes)).toBe(3);
     expect(calculateQuestionCost(nodes)).toBe(3);
   });
+
+  it.each([
+    { answer: "7", expected: 0.1 },
+    { answer: "42", expected: 0.3 },
+    { answer: "350", expected: 0.8 },
+    { answer: "1234", expected: 1 },
+    { answer: "-42", expected: 0.3 },
+    { answer: "3/4", expected: 1 },
+    { answer: "5/6", expected: 1 },
+    { answer: "0.5", expected: 0.1 },
+    { answer: "1.25", expected: 0.8 },
+    { answer: "0.125", expected: 0.8 },
+    { answer: "|x|", expected: 0.1 },
+  ])("assigns memory cost for $answer", ({ answer, expected }) => {
+    expect(memoryCostForAnswer(answer)).toBe(expected);
+  });
+
+  it("adds memory cost to the total mental cost", () => {
+    expect(
+      calculateMentalCost([{ kind: "integer-add", a: 25, b: 36 }], "61"),
+    ).toBe(3.3);
+  });
 });
 
 describe("global difficulty cost ranges", () => {
@@ -120,16 +148,61 @@ describe("global difficulty cost ranges", () => {
   }
 
   it("uses the same range for every question type", () => {
-    for (const difficulty of ["easy", "medium", "hard"] as const) {
+    for (const difficulty of ["easy", "medium", "hard", "extreme"] as const) {
       const range = costRangeForDifficulty(difficulty);
       expect(costRangeForDifficulty(difficulty)).toEqual(range);
     }
-    expect(costRangeForDifficulty("easy")).toEqual({ type: "range", min: 8, max: 15 });
-    expect(costRangeForDifficulty("medium")).toEqual({ type: "range", min: 12, max: 20 });
-    expect(costRangeForDifficulty("hard")).toEqual({ type: "range", min: 15, max: 30 });
+    expect(costRangeForDifficulty("easy")).toEqual({ type: "range", min: 8, max: 12 });
+    expect(costRangeForDifficulty("medium")).toEqual({ type: "range", min: 10, max: 15 });
+    expect(costRangeForDifficulty("hard")).toEqual({ type: "range", min: 13, max: 18 });
+    expect(costRangeForDifficulty("extreme")).toEqual({ type: "range", min: 17, max: 28 });
   });
 
-  it.each(["easy", "medium", "hard"] as const)(
+  it("defines weighted bands for every difficulty", () => {
+    expect(DIFFICULTY_COST_DISTRIBUTIONS.easy).toEqual([
+      { min: 8, max: 9, weight: 0.3 },
+      { min: 9, max: 10, weight: 0.5 },
+      { min: 10, max: 11.5, weight: 0.15 },
+      { min: 11.5, max: 12, weight: 0.05, inclusiveMax: true },
+    ]);
+    expect(DIFFICULTY_COST_DISTRIBUTIONS.medium).toEqual([
+      { min: 10, max: 12, weight: 0.3 },
+      { min: 12, max: 14, weight: 0.5 },
+      { min: 14, max: 15, weight: 0.2, inclusiveMax: true },
+    ]);
+    expect(DIFFICULTY_COST_DISTRIBUTIONS.hard).toEqual([
+      { min: 13, max: 15, weight: 0.2 },
+      { min: 15, max: 17, weight: 0.6 },
+      { min: 17, max: 18, weight: 0.2, inclusiveMax: true },
+    ]);
+    expect(DIFFICULTY_COST_DISTRIBUTIONS.extreme).toEqual([
+      { min: 17, max: 20, weight: 0.15 },
+      { min: 20, max: 23, weight: 0.15 },
+      { min: 23, max: 25, weight: 0.4 },
+      { min: 25, max: 28, weight: 0.4, inclusiveMax: true },
+    ]);
+  });
+
+  it("classifies costs into weighted bands with the last band including max", () => {
+    expect(classifyCostBand("easy", 8)).toBe(0);
+    expect(classifyCostBand("easy", 9)).toBe(1);
+    expect(classifyCostBand("easy", 11.5)).toBe(3);
+    expect(classifyCostBand("easy", 12)).toBe(3);
+    expect(classifyCostBand("extreme", 28)).toBe(3);
+  });
+
+  it("samples only bands that stay within the overall range", () => {
+    for (const difficulty of ["easy", "medium", "hard", "extreme"] as const) {
+      const overall = costRangeForDifficulty(difficulty);
+      for (let index = 0; index < 50; index += 1) {
+        const band = sampleCostDistributionBand(difficulty);
+        expect(band.min).toBeGreaterThanOrEqual(overall.min);
+        expect(band.max).toBeLessThanOrEqual(overall.max);
+      }
+    }
+  });
+
+  it.each(["easy", "medium", "hard", "extreme"] as const)(
     "mixed %s questions all fall in the global range",
     (difficulty) => {
       const range = costRangeForDifficulty(difficulty);
@@ -150,7 +223,7 @@ describe("global difficulty cost ranges", () => {
 describe("legacy template adapter", () => {
   it("maps integer templates through cost model", () => {
     expect(
-      calculateMentalCost([{ kind: "integer-add", a: 25, b: 36 }]),
-    ).toBe(3);
+      calculateMentalCost([{ kind: "integer-add", a: 25, b: 36 }], "61"),
+    ).toBe(3.3);
   });
 });

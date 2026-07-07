@@ -45,6 +45,7 @@ function operandRange(difficulty: Question["difficulty"]): { min: number; max: n
     easy: { min: 2, max: 9 },
     medium: { min: 2, max: 15 },
     hard: { min: 3, max: 20 },
+    extreme: { min: 6, max: 30 },
   }[difficulty];
 }
 
@@ -76,7 +77,7 @@ function rebuildQuestion(
     id: createQuestionId([question.type, prompt, answer]),
     prompt,
     answer,
-    mentalCost: calculateMentalCost(costTemplates),
+    mentalCost: calculateMentalCost(costTemplates, answer),
     costTemplates,
     tags: uniqueTags([...question.tags, ...(params.tags ?? []), "working-memory"]),
     technique: {

@@ -3,9 +3,11 @@ import { generateArithmeticQuestion } from "./generators/arithmetic";
 import { generateFractionQuestion } from "./generators/fractions";
 import { generatePowersQuestion } from "./generators/powers";
 import {
+  classifyCostBand,
   costRangeForDifficulty,
   matchesMentalCostBucket,
   maxQuestionsPerType,
+  sampleCostDistributionBand,
 } from "./mentalCost";
 import { getQuestionTypesForTags } from "./templates";
 import type { GenerateQuestionInput, Question, QuestionGenerator, QuestionType } from "./types";
@@ -96,14 +98,16 @@ function tryGenerateQuestion(input: GenerateQuestionInput): Question | undefined
 
   for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
     const type = pickOne(eligibleTypes);
+    const targetBand = sampleCostDistributionBand(input.difficulty);
     const candidate = generatorByType[type]({
       ...input,
-      targetMentalCostBucket: bucket,
+      targetMentalCostBucket: targetBand,
     });
 
     if (
       candidate &&
       questionMatchesTargetTags(candidate, input.targetTags) &&
+      classifyCostBand(input.difficulty, candidate.mentalCost) >= 0 &&
       matchesMentalCostBucket(candidate.mentalCost, bucket) &&
       isQuestionValid(candidate, input.difficulty, input.context.seenQuestionIds)
     ) {

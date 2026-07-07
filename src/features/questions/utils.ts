@@ -64,6 +64,14 @@ export function parseNumericAnswer(answer: string): number | undefined {
   return Number.isFinite(numeric) ? numeric : undefined;
 }
 
+export function countSignificantDigits(answer: string): number {
+  const normalized = normalizeAnswer(answer);
+  const unsigned = normalized.startsWith("-") ? normalized.slice(1) : normalized;
+  const digitsOnly = unsigned.replace(".", "");
+  const trimmedLeadingZeros = digitsOnly.replace(/^0+/, "");
+  return Math.max(1, trimmedLeadingZeros.length);
+}
+
 export function isAnswerCorrect(userAnswer: string, expectedAnswer: string): boolean {
   const normalizedUserAnswer = normalizeAnswer(userAnswer);
   const normalizedExpectedAnswer = normalizeAnswer(expectedAnswer);

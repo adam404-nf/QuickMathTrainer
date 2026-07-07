@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { costRangeForDifficulty, matchesMentalCostBucket, maxQuestionsPerType } from "./mentalCost";
+import {
+  classifyCostBand,
+  costRangeForDifficulty,
+  DIFFICULTY_COST_DISTRIBUTIONS,
+  matchesMentalCostBucket,
+  maxQuestionsPerType,
+} from "./mentalCost";
 import { availableQuestionTypes, generateQuestion, questionMatchesTargets } from "./registry";
 import type { QuestionType } from "./types";
 
@@ -152,7 +158,7 @@ describe("question registry", () => {
 
   it("every mode and difficulty stays strictly in the global range", () => {
     const modes = ["arithmetic", "fractions", "powers", "mixed"] as const;
-    const difficulties = ["easy", "medium", "hard"] as const;
+    const difficulties = ["easy", "medium", "hard", "extreme"] as const;
 
     for (const mode of modes) {
       for (const difficulty of difficulties) {
@@ -169,6 +175,41 @@ describe("question registry", () => {
 
           expect(matchesMentalCostBucket(question.mentalCost, range)).toBe(true);
         }
+      }
+    }
+  }, 120_000);
+
+  it("keeps each type-and-difficulty distribution within ±5%", () => {
+    const modes = ["arithmetic", "fractions", "powers"] as const;
+    const difficulties = ["easy", "medium", "hard", "extreme"] as const;
+
+    for (const mode of modes) {
+      for (const difficulty of difficulties) {
+        const bands = DIFFICULTY_COST_DISTRIBUTIONS[difficulty];
+        const totalWeight = bands.reduce((sum, band) => sum + band.weight, 0);
+        const counts = new Array(bands.length).fill(0);
+        const sampleCount = 800;
+
+        for (let index = 0; index < sampleCount; index += 1) {
+          const question = generateQuestion({
+            mode,
+            difficulty,
+            context: {
+              recentQuestionIds: [],
+              seenQuestionIds: new Set(),
+            },
+          });
+          const bandIndex = classifyCostBand(difficulty, question.mentalCost);
+          expect(bandIndex).toBeGreaterThanOrEqual(0);
+          counts[bandIndex] += 1;
+        }
+
+        counts.forEach((count, bandIndex) => {
+          const actualRatio = count / sampleCount;
+          const expectedRatio = bands[bandIndex].weight / totalWeight;
+          expect(actualRatio).toBeGreaterThanOrEqual(expectedRatio - 0.05);
+          expect(actualRatio).toBeLessThanOrEqual(expectedRatio + 0.05);
+        });
       }
     }
   }, 120_000);

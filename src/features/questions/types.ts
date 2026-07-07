@@ -1,7 +1,7 @@
 import type { MentalCostBucket } from "./mentalCost";
 import type { CalculationTemplateSpec } from "./calculationTemplates";
 
-export type Difficulty = "easy" | "medium" | "hard";
+export type Difficulty = "easy" | "medium" | "hard" | "extreme";
 
 export type QuestionKind = "fill-in" | "multiple-choice";
 

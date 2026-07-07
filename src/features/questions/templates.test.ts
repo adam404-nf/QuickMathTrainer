@@ -4,7 +4,7 @@ import type { Difficulty } from "./types";
 
 describe("multiple-choice options", () => {
   it("always includes the correct answer across all templates", () => {
-    const difficulties: Difficulty[] = ["easy", "medium", "hard"];
+    const difficulties: Difficulty[] = ["easy", "medium", "hard", "extreme"];
 
     for (const template of allTemplates) {
       for (const difficulty of difficulties) {

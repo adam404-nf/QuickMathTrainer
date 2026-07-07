@@ -27,6 +27,7 @@ const DIFFICULTY_LABELS: Record<PracticePreferences["difficulty"], string> = {
   easy: "基礎",
   medium: "標準",
   hard: "挑戰",
+  extreme: "極限",
 };
 
 export function HomePage({

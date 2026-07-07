@@ -60,7 +60,7 @@ export function isValidDenominatorPair(a: number, b: number): boolean {
 
 export function randomDenominator(difficulty: Difficulty): number {
   const pool =
-    difficulty === "hard"
+    difficulty === "hard" || difficulty === "extreme"
       ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
       : [2, 3, 4, 5, 6, 8, 10, 12];
   return pickOne(pool);

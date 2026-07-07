@@ -9,6 +9,7 @@ import {
 import type { Fraction } from "./fractionMath";
 import { lcm } from "./fractionMath";
 import type { MentalCost } from "./types";
+import { countSignificantDigits, normalizeAnswer } from "./utils";
 
 export type CalculationTemplateKind =
   | "integer-add"
@@ -131,8 +132,42 @@ export function unlikeDenomBaseCost(left: Fraction, right: Fraction): number {
   return baseCostForTemplate({ kind: "fraction-unlike-denom", left, right });
 }
 
-export function calculateMentalCost(templates: readonly CalculationTemplateSpec[]): MentalCost {
-  return calculateQuestionCost(costNodesFromTemplates(templates));
+function memoryCostForDigitCount(digits: number): number {
+  if (digits <= 1) return 0.1;
+  if (digits === 2) return 0.3;
+  if (digits === 3) return 0.8;
+  return 1;
+}
+
+export function memoryCostForAnswer(answer: string): number {
+  const normalized = normalizeAnswer(answer);
+
+  if (/^\|[a-z]\|$/.test(normalized)) {
+    return 0.1;
+  }
+
+  if (/^-?\d+\/-?\d+$/.test(normalized)) {
+    return 1;
+  }
+
+  if (/^-?\d+$/.test(normalized)) {
+    const value = Math.abs(Number(normalized));
+    const digits = value === 0 ? 1 : Math.floor(Math.log10(value)) + 1;
+    return memoryCostForDigitCount(digits);
+  }
+
+  if (/^-?(?:\d+\.\d+|\d+\.|\.\d+)$/.test(normalized)) {
+    return memoryCostForDigitCount(countSignificantDigits(normalized));
+  }
+
+  return 0;
+}
+
+export function calculateMentalCost(
+  templates: readonly CalculationTemplateSpec[],
+  answer = "",
+): MentalCost {
+  return calculateQuestionCost(costNodesFromTemplates(templates)) + memoryCostForAnswer(answer);
 }
 
 export interface CostStepDescription {
@@ -148,11 +183,13 @@ export interface MentalCostDescription {
   stepsCost: number;
   /** 多步驟協調成本：max(0, stepCount - 1) × MULTI_STEP_COORDINATION_COST。 */
   coordinationOverhead: number;
+  memoryCost: number;
   mentalCost: MentalCost;
 }
 
 export function describeMentalCost(
   templates: readonly CalculationTemplateSpec[],
+  answer = "",
 ): MentalCostDescription {
   const nodes = costNodesFromTemplates(templates);
   const steps: CostStepDescription[] = nodes.map((node) => {
@@ -165,14 +202,16 @@ export function describeMentalCost(
     };
   });
 
-  const mentalCost = calculateQuestionCost(nodes);
+  const memoryCost = memoryCostForAnswer(answer);
+  const mentalCost = calculateQuestionCost(nodes) + memoryCost;
   const stepsCost = steps.reduce((sum, step) => sum + step.effectiveCost, 0);
 
   return {
     templates,
     steps,
     stepsCost,
-    coordinationOverhead: mentalCost - stepsCost,
+    coordinationOverhead: mentalCost - stepsCost - memoryCost,
+    memoryCost,
     mentalCost,
   };
 }
@@ -255,8 +294,8 @@ export function decimalMultiplyBaseCost(decimal: number, integer: number): numbe
   return baseCostForTemplate({ kind: "decimal-multiply", decimal, integer });
 }
 
-export function workingMemoryCost(_templateCount: number): number {
-  return 0;
+export function workingMemoryCost(answer: string): number {
+  return memoryCostForAnswer(answer);
 }
 
 export function clampMentalCost(value: number): MentalCost {
