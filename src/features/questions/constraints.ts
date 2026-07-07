@@ -1,4 +1,46 @@
+import { isFiniteDecimalString } from "./answerPath";
+import { hasTerminatingDecimal, isSimplestFractionString } from "./fractionMath";
 import type { Difficulty, Question } from "./types";
+import { parseNumericAnswer } from "./utils";
+
+function promptMatchesAnswerFormat(question: Question): boolean {
+  if (!question.answerFormat) {
+    return true;
+  }
+
+  const suffix = question.answerFormat === "decimal" ? "（小數）" : "（分數）";
+  return question.prompt.includes(suffix);
+}
+
+function answerMatchesFormat(question: Question): boolean {
+  if (!question.answerFormat) {
+    return true;
+  }
+
+  if (question.answerFormat === "fraction") {
+    return isSimplestFractionString(question.answer);
+  }
+
+  const value = parseNumericAnswer(question.answer);
+  return value !== undefined && hasTerminatingDecimal(value);
+}
+
+function optionsMatchFormat(question: Question): boolean {
+  if (question.kind !== "multiple-choice" || !question.options) {
+    return true;
+  }
+
+  if (!question.answerFormat) {
+    return true;
+  }
+
+  return question.options.every((option) => {
+    if (question.answerFormat === "fraction") {
+      return isSimplestFractionString(option) || Number.isInteger(parseNumericAnswer(option) ?? NaN);
+    }
+    return isFiniteDecimalString(option) || Number.isInteger(parseNumericAnswer(option) ?? NaN);
+  });
+}
 
 export function isQuestionValid(
   question: Question,
@@ -6,6 +48,22 @@ export function isQuestionValid(
   seenQuestionIds: Set<string>,
 ): boolean {
   if (seenQuestionIds.has(question.id)) {
+    return false;
+  }
+
+  if (question.needsAnswerPath) {
+    return false;
+  }
+
+  if (question.answerFormat && !promptMatchesAnswerFormat(question)) {
+    return false;
+  }
+
+  if (!answerMatchesFormat(question)) {
+    return false;
+  }
+
+  if (!optionsMatchFormat(question)) {
     return false;
   }
 

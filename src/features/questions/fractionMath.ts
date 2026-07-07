@@ -469,3 +469,43 @@ export function fractionDivideTechnique(left: Fraction, right: Fraction): Questi
     ],
   };
 }
+
+export function decimalToFractionParts(value: number): Fraction {
+  const trimmed = String(Number(value.toFixed(6)));
+  if (!trimmed.includes(".")) {
+    return { num: Number(trimmed), den: 1 };
+  }
+  const decimalPlaces = trimmed.split(".")[1]?.length ?? 0;
+  const den = 10 ** decimalPlaces;
+  const num = Math.round(value * den);
+  return simplifyFraction({ num, den });
+}
+
+export function rationalToFraction(value: number): Fraction {
+  return decimalToFractionParts(value);
+}
+
+export function hasTerminatingDecimal(value: number): boolean {
+  const { den } = rationalToFraction(value);
+  let d = den;
+  while (d % 2 === 0) {
+    d /= 2;
+  }
+  while (d % 5 === 0) {
+    d /= 5;
+  }
+  return d === 1;
+}
+
+export function isSimplestFractionString(answer: string): boolean {
+  const match = answer.trim().replace(/\s+/g, "").match(/^(-?\d+)\/(-?\d+)$/);
+  if (!match) {
+    return false;
+  }
+  const num = Number(match[1]);
+  const den = Number(match[2]);
+  if (den <= 0) {
+    return false;
+  }
+  return gcd(num, den) === 1;
+}

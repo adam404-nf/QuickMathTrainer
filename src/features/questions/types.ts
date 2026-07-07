@@ -11,6 +11,8 @@ export type PracticeMode = "mixed" | "weakness-focused" | QuestionType;
 
 export type MentalCost = number;
 
+export type AnswerFormat = "decimal" | "fraction";
+
 export interface QuestionTechnique {
   name: string;
   steps: readonly string[];
@@ -25,6 +27,14 @@ export interface Question {
   options?: string[];
   difficulty: Difficulty;
   tags: string[];
+  /** 專項訓練篩選用；未指定時由 tags 扣除次要 tag 推導。 */
+  specialtyTags?: string[];
+  /** 填空／選擇題要求的分數或小數形式；整數題省略。 */
+  answerFormat?: AnswerFormat;
+  /** 整題生成後經 resolveAnswerPath 定稿有理數答案。 */
+  needsAnswerPath?: boolean;
+  /** 有理數結果（needsAnswerPath 時由模板提供）。 */
+  rationalValue?: number;
   mentalCost: MentalCost;
   /** 計算此題 mentalCost 所用的各步 spec，用於 cost 檢查面板顯示計算過程。 */
   costTemplates?: CalculationTemplateSpec[];

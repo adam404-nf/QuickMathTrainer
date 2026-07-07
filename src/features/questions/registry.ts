@@ -1,4 +1,5 @@
 import { isQuestionValid } from "./constraints";
+import { getEffectiveSpecialtyTags } from "./answerPath";
 import { generateArithmeticQuestion } from "./generators/arithmetic";
 import { generateFractionQuestion } from "./generators/fractions";
 import { generatePowersQuestion } from "./generators/powers";
@@ -28,7 +29,8 @@ function questionMatchesTargetTags(question: Question, targetTags?: string[]): b
     return true;
   }
 
-  return question.tags.some((tag) => targetTags.includes(tag));
+  const specialtyTags = getEffectiveSpecialtyTags(question);
+  return specialtyTags.some((tag) => targetTags.includes(tag));
 }
 
 function resolveWeaknessFocusedTypes(input: GenerateQuestionInput): QuestionType[] {
@@ -139,11 +141,6 @@ export function generateQuestion(input: GenerateQuestionInput): Question {
       if (relaxedTypes) {
         return relaxedTypes;
       }
-    }
-
-    const withoutTags = tryGenerateQuestion({ ...input, targetTags: undefined });
-    if (withoutTags) {
-      return withoutTags;
     }
   }
 

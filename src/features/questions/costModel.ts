@@ -33,6 +33,17 @@ export const TWO_DIGIT_MULTIPLY_BONUS = 1.25;
 /** 每多一個計算步驟的協調成本（stepCount - 1 倍）。 */
 export const MULTI_STEP_COORDINATION_COST = 1;
 
+/**
+ * 分數→小數換算 chunk 乘數（可調常數，用來平衡 cost；目前設為 1）。
+ * 分數轉小數理解為一次「分子 ÷ 分母」的除法，cost 參考除法計算。
+ */
+export const FRACTION_TO_DECIMAL_COST_SCALE = 1.0;
+/**
+ * 小數→分數換算 chunk 乘數（可調常數，用來平衡 cost；目前設為 1）。
+ * 小數轉分數理解為一次約分（如 0.375 = 375/1000 再約分），cost 參考分數約分計算。
+ */
+export const DECIMAL_TO_FRACTION_COST_SCALE = 1.0;
+
 export function lcmTierMultiplier(lcmValue: number): number {
   if (lcmValue <= 12) return 0.4;
   if (lcmValue <= 60) return 0.55;
@@ -263,7 +274,7 @@ function expandFractionCost(numerator: number, denominator: number, commonDen: n
   return effective;
 }
 
-function fractionSimplificationCost(numerator: number, denominator: number): number {
+export function fractionSimplificationCost(numerator: number, denominator: number): number {
   const shared = fractionGcd(numerator, denominator);
   if (shared <= 1) {
     return gcdInternalCost(numerator, denominator) * CHUNK_CONSTANTS.fractionSimplification;

@@ -3,7 +3,8 @@
 > 本文件是 QuickMath Trainer 心算成本（`mentalCost`）的**唯一設計規格**。實作對應：
 >
 > - [`src/features/questions/costModel.ts`](../src/features/questions/costModel.ts) — Atomic、IntegerChunk、FractionChunk 與壓縮常數
-> - [`src/features/questions/calculationTemplates.ts`](../src/features/questions/calculationTemplates.ts) — 題目模板到 cost tree 的適配層
+> - [`src/features/questions/calculationTemplates.ts`](../src/features/questions/calculationTemplates.ts) — 題目模板到 cost tree 的適配層（含小數／換算 chunk）
+> - [`src/features/questions/answerPath.ts`](../src/features/questions/answerPath.ts) — 答案形式判定與分數／小數雙路徑 cost
 > - [`src/features/questions/mentalCost.ts`](../src/features/questions/mentalCost.ts) — 難度加權選題分佈（raw cost range）
 > - [`src/features/questions/templates.ts`](../src/features/questions/templates.ts) — 題目模板
 > - [`src/features/questions/registry.ts`](../src/features/questions/registry.ts) — 依 cost range 重試生成
@@ -120,6 +121,33 @@ LCMChunk
 effectiveCost × 1.25
 ```
 
+### 3.6 小數與換算延伸 Chunk
+
+小數題與「小數↔分數換算」題不新增獨立壓縮常數，而是**複用既有 Chunk**，僅在必要處乘上固定的換算 scale。對應實作於 [`calculationTemplates.ts`](../src/features/questions/calculationTemplates.ts) 的 `costForTemplateSpec()` 與 `costNodeFromCalculationTemplate()`。
+
+| CalculationTemplate kind | cost 對應 | 說明 |
+|---|---|---|
+| `decimal-add` / `decimal-subtract` | IntegerChunk | 小數視為 `n/10`，以整數加減計算後置回小數點（位值移動免費） |
+| `decimal-multiply` | IntegerChunk | 小數 × 整數：`round(decimal×10) × integer` 的整數乘法 |
+| `decimal-square` | PowerChunk（`exponent = 2`） | 小數 `d` 寫成 `n/10ᵏ`，以 `n²` 的平方 chunk 計算（與整數 `square` 同模型） |
+| `decimal-fraction-add` / `-subtract` / `-multiply` / `-divide` | FractionChunk | 小數與分數混合四則：以對應 Fraction 運算 chunk 計 |
+| `fraction-to-decimal` | IntegerChunk（`1 ÷ den`） | 舊版分數轉小數 |
+| `fraction-to-decimal-explicit` | `integerDivideInternalCost(num, den) × FRACTION_TO_DECIMAL_COST_SCALE` | 分數→小數：理解為一次「分子 ÷ 分母」的除法，cost 參考除法計算 |
+| `decimal-to-fraction` | `fractionSimplificationCost(num, den) × DECIMAL_TO_FRACTION_COST_SCALE` | 小數→分數：理解為一次約分（如 `0.375 = 375/1000` 再約分），cost 參考分數約分計算 |
+
+**換算 cost 常數（可調，用來平衡 cost）**
+
+換算成本的計算方式固定：**小數→分數** 以約分（`fractionSimplificationCost`）計、**分數→小數** 以除法（`integerDivideInternalCost`）計；在此之上各乘一個可調常數以平衡 cost。**目前兩者皆設為 1**。
+
+| 常數 | 目前值 | 計算基礎 |
+|---|---|---|
+| `FRACTION_TO_DECIMAL_COST_SCALE` | **1.0** | 分數→小數：`integerDivideInternalCost`（分子 ÷ 分母） |
+| `DECIMAL_TO_FRACTION_COST_SCALE` | **1.0** | 小數→分數：`fractionSimplificationCost`（寫成 `p/10ⁿ` 再約分） |
+
+兩者以 `const` 定義於 [`costModel.ts`](../src/features/questions/costModel.ts)。若日後需微調平衡，可調整常數；但**禁止**為了讓個別題目落進 difficulty range 而動態調參，達標須靠 reroll 較小數字、append 步驟或換 template。
+
+> **一致性基準**：常數為 1 時，`0.375` 換算成分數的 cost 等於 `375/1000` 直接約分的 cost，確保「小數→分數」與「既有分數約分」在同一尺度上。
+
 ---
 
 ## 4. 多步驟題目與 Memory Cost
@@ -215,11 +243,64 @@ cap = ceil(questionLimit / eligibleTypeCount) + 1
 
 ---
 
-## 7. 驗證基準（`mentalCost.test.ts`）
+## 7. 答案形式與雙路徑成本（有理數題）
+
+分數 / 小數 / 混合運算等**可能產生有理數答案**的題目，其 `mentalCost` 取決於最終選定的**答案形式**（`answerFormat: "fraction" | "decimal"`）。這類題以 `needsAnswerPath` 標記，在**整題生成（含 append 墊高）之後**才由 [`answerPath.ts`](../src/features/questions/answerPath.ts) 的 `resolveAnswerPath()` 定稿，**不在**模板開頭提早決定形式。
+
+### 7.1 路徑選擇規則
+
+先對整條題目算出有理數結果，再依「能否除盡（有限小數）」選路徑：
+
+| 結果 | 可選路徑 | 選路徑規則 | 採用的 `mentalCost` |
+|---|---|---|---|
+| 除不盡（非有限小數） | **僅分數** | 分數路徑須落在 difficulty range，否則 reroll / append | 分數路徑 cost |
+| 可除盡（有限小數） | 分數 **或** 小數 | 分別算兩路 cost，優先採 in-range 路徑；兩路皆 in-range → **70% 分數 / 30% 小數** | **被選中路徑**的 cost |
+
+- 判定「可除盡」由 `hasTerminatingDecimal()`：最簡分母的質因數僅含 2、5。
+- 定稿後 prompt 補上 `（分數）` 或 `（小數）`，與 `answerFormat` 一致。
+- 整數答案題不走此流程。
+- **`mentalCost` 必須來自被選中路徑**，避免「顯示小數答案卻套用分數 cost」而誤過 range 檢查。
+
+### 7.2 兩路徑 cost 組成
+
+`resolveAnswerPath()` 透過 `buildFractionPathCost()` / `buildDecimalPathCost()` 把題目的 `costTemplates` **重新映射**成目標形式的 chunk 序列，再以 §4 公式（Σ chunk + 多步協調 + memory）計算：
+
+**分數路徑（`answerFormat === "fraction"`）**
+
+```text
+decimal-to-fraction（每個小數運算元換成分數，× DECIMAL_TO_FRACTION_COST_SCALE）
++ 依 op 對應的 FractionChunk（same/unlike-denom、multiply、divide）
++ 必要的結果約分
+```
+
+**小數路徑（`answerFormat === "decimal"`）**
+
+```text
+fraction-to-decimal-explicit（每個分數運算元換成小數，× FRACTION_TO_DECIMAL_COST_SCALE = 1.0）
++ 依 op 對應的 decimal 運算（decimal-add / -subtract / -multiply）
+```
+
+換算常數目前皆為 1（見 §3.6）；若選中路徑 out-of-range，交由生成流程 reroll（偏高）或 append（偏低），而非為單題調整換算 scale。
+
+### 7.3 與生成流程的銜接
+
+沿用 §5.2，但明確化 append 與答案形式的先後：
+
+1. `pickOne` template → 同一 template 內 reroll 較小數字（`REROLLS_PER_TEMPLATE`）。
+2. cost 偏低 → append 相容步驟（整數 / 分數 / **小數** / 減法專項連減）。
+3. append 完成後才 `resolveAnswerPath()`（含除盡判定 + 雙路 cost）。
+4. 選中路徑 in-range → 回傳；偏高 → 續 reroll；偏低 → 續 append；reroll 用盡才換 template。
+5. `constraints.ts` 於生成期驗證：prompt 後綴與 `answerFormat` 一致、分數答案最簡、小數答案為有限小數、MC 四選項格式一致。
+
+---
+
+## 8. 驗證基準（`mentalCost.test.ts`）
 
 - Atomic：`3+4`、`25+36`、`34-19`
 - Fraction：`1/2+1/3` 落在 easy 範圍；大 LCM 分數加減明顯高於簡單題
 - Memory Cost：整數／小數有效數字／分數都符合對應分級
+- 換算一致性：`0.375` 換算 cost 與 `375/1000` 約分 cost 在同一尺度
+- 答案路徑：除不盡僅分數路徑；可除盡雙路皆 in-range 時 70/30；`mentalCost` 與選中路徑一致
 - 生成：每種難度、每種專項訓練題型的 cost 都必須落在該難度 range 內
 - 分佈：每種難度、每種專項訓練題型的 band 分佈偏差不超過 `±5%`
 - mixed 模式下已達上限的題型不會再出題

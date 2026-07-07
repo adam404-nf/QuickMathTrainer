@@ -1,5 +1,8 @@
+import { resolveAnswerPath } from "../answerPath";
 import {
   costAboveBucket,
+  costBelowBucket,
+  costRangeForDifficulty,
   matchesMentalCostBucket,
 } from "../mentalCost";
 import { filterTemplates } from "../templates";
@@ -10,12 +13,12 @@ import { appendCostStep, MAX_APPEND_STEPS } from "./appendStep";
 
 const MAX_TEMPLATE_ATTEMPTS = 60;
 /** 同一 template 內以不同（較簡單）數字重抽的次數，用來把過高的 cost 降回範圍。 */
-const REROLLS_PER_TEMPLATE = 4;
+const REROLLS_PER_TEMPLATE = 8;
 
 export function tryExtendQuestion(
   question: Question,
   input: GenerateQuestionInput,
-  extend: (question: Question) => Question | undefined = appendCostStep,
+  extend: (question: Question) => Question | undefined = (q) => appendCostStep(q, input),
 ): Question {
   if (!input.targetMentalCostBucket) {
     return question;
@@ -25,13 +28,9 @@ export function tryExtendQuestion(
   let appendCount = 0;
 
   while (
-    !matchesMentalCostBucket(current.mentalCost, input.targetMentalCostBucket) &&
+    costBelowBucket(current.mentalCost, input.targetMentalCostBucket) &&
     appendCount < MAX_APPEND_STEPS
   ) {
-    if (costAboveBucket(current.mentalCost, input.targetMentalCostBucket)) {
-      return current;
-    }
-
     const extended = extend(current);
     if (!extended || extended.mentalCost <= current.mentalCost) {
       break;
@@ -43,11 +42,28 @@ export function tryExtendQuestion(
   return current;
 }
 
+function finalizeQuestion(question: Question, input: GenerateQuestionInput): Question | undefined {
+  const globalRange = costRangeForDifficulty(input.difficulty);
+  const checkRange = input.targetMentalCostBucket ?? globalRange;
+
+  const resolved = question.needsAnswerPath ? resolveAnswerPath(question, checkRange) : question;
+  if (!resolved) {
+    return undefined;
+  }
+
+  if (!matchesMentalCostBucket(resolved.mentalCost, checkRange)) {
+    return undefined;
+  }
+
+  return resolved;
+}
+
 export function generateFromTemplates(
   templates: readonly QuestionTemplate[],
   input: GenerateQuestionInput,
 ): Question | undefined {
-  const filtered = filterTemplates(templates, input.targetTags);
+  const useSpecialtyTags = input.mode === "weakness-focused";
+  const filtered = filterTemplates(templates, input.targetTags, { useSpecialtyTags });
 
   if (input.targetTags && input.targetTags.length > 0 && filtered.length === 0) {
     return undefined;
@@ -59,8 +75,6 @@ export function generateFromTemplates(
   for (let attempt = 0; attempt < MAX_TEMPLATE_ATTEMPTS; attempt += 1) {
     const template = pickOne(pool);
 
-    // 保留 template 結構，重抽較簡單／不同的數字，嘗試讓 cost 落回目標範圍，
-    // 而非放寬 difficulty range。
     for (let reroll = 0; reroll < REROLLS_PER_TEMPLATE; reroll += 1) {
       let question = template({
         difficulty: input.difficulty,
@@ -69,15 +83,23 @@ export function generateFromTemplates(
 
       question = tryExtendQuestion(question, input);
 
-      if (!bucket || matchesMentalCostBucket(question.mentalCost, bucket)) {
-        return question;
-      }
-
-      // cost 太高 → 重抽較簡單數字；cost 太低且無法追加 → 換數字再試。
-      if (!costAboveBucket(question.mentalCost, bucket)) {
-        // 低於範圍：同一 template 再抽通常無法拉高，直接換 template。
+      const finalized = finalizeQuestion(question, input);
+      if (!finalized) {
+        if (bucket && costAboveBucket(question.mentalCost, bucket)) {
+          continue;
+        }
         break;
       }
+
+      if (!bucket || matchesMentalCostBucket(finalized.mentalCost, bucket)) {
+        return finalized;
+      }
+
+      if (costAboveBucket(finalized.mentalCost, bucket)) {
+        continue;
+      }
+
+      break;
     }
   }
 

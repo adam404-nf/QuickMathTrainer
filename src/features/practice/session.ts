@@ -86,7 +86,11 @@ export function revealAnswer(session: PracticeSession): SubmittedAnswer {
 
 export function submitAnswer(session: PracticeSession, userAnswer: string): SubmittedAnswer {
   const now = performance.now();
-  const isCorrect = isAnswerCorrect(userAnswer, session.currentQuestion.answer);
+  const isCorrect = isAnswerCorrect(
+    userAnswer,
+    session.currentQuestion.answer,
+    session.currentQuestion.answerFormat,
+  );
   const attempt: Attempt = {
     id: `${session.id}-attempt-${session.attempts.length + 1}`,
     question: session.currentQuestion,

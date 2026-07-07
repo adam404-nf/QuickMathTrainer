@@ -39,7 +39,9 @@ export function AnswerForm({
   const wasDisabledRef = useRef(disabled);
 
   const isMultipleChoice = question.kind === "multiple-choice" && question.options;
-  const answerFormatHint = !isMultipleChoice ? getAnswerFormatHint(question.answer) : undefined;
+  const answerFormatHint = !isMultipleChoice
+    ? getAnswerFormatHint(question.answer, question.answerFormat)
+    : undefined;
 
   useEffect(() => {
     if (wasDisabledRef.current && !disabled && !isMultipleChoice) {

@@ -1,3 +1,4 @@
+import { deriveSpecialtyTags, formatDistractor } from "./answerPath";
 import {
   buildFractionAbsComposite,
   buildFractionComposite,
@@ -7,6 +8,7 @@ import {
   lcm,
   randomFractionPair,
   randomProperFraction,
+  simplifyFraction,
   unlikeDenominatorTechnique,
 } from "./fractionMath";
 import { calculateMentalCost, type CalculationTemplateSpec } from "./calculationTemplates";
@@ -38,7 +40,7 @@ import {
   sumDiffProductTechnique,
   symbolicAbsTechnique,
 } from "./techniques";
-import { createQuestionId, parseNumericAnswer, pickOne, randomInt, shuffle } from "./utils";
+import { createQuestionId, formatDecimal, normalizeAnswer, parseNumericAnswer, pickOne, randomInt, shuffle } from "./utils";
 
 export interface QuestionTemplateInput {
   difficulty: Difficulty;
@@ -47,18 +49,38 @@ export interface QuestionTemplateInput {
 
 export type QuestionTemplate = (input: QuestionTemplateInput) => Question;
 
-function withOptions(answer: string, distractors: readonly string[], kind: QuestionKind): string[] | undefined {
+function inferAnswerFormat(answer: string, explicit?: Question["answerFormat"]): Question["answerFormat"] | undefined {
+  if (explicit) {
+    return explicit;
+  }
+  const normalized = normalizeAnswer(answer);
+  if (/^-?\d+\/-?\d+$/.test(normalized)) {
+    return "fraction";
+  }
+  if (normalized.includes(".")) {
+    return "decimal";
+  }
+  return undefined;
+}
+
+function withOptions(
+  answer: string,
+  distractors: readonly string[],
+  kind: QuestionKind,
+  answerFormat?: Question["answerFormat"],
+): string[] | undefined {
   if (kind === "fill-in") {
     return undefined;
   }
 
-  const pool = [...new Set(distractors.filter((item) => item !== answer))];
+  const format = inferAnswerFormat(answer, answerFormat);
+  const pool = [...new Set(distractors.map((item) => formatDistractor(item, format)).filter((item) => item !== answer))];
   const numericAnswer = parseNumericAnswer(answer);
 
   if (numericAnswer !== undefined) {
     for (let offset = 1; pool.length < 3 && offset <= 20; offset += 1) {
-      for (const candidate of [numericAnswer + offset, numericAnswer - offset]) {
-        const formatted = String(candidate);
+      for (const candidate of [numericAnswer + offset * 0.1, numericAnswer - offset * 0.1, numericAnswer + offset, numericAnswer - offset]) {
+        const formatted = formatDistractor(candidate, format);
         if (formatted !== answer && !pool.includes(formatted)) {
           pool.push(formatted);
         }
@@ -79,20 +101,29 @@ function makeQuestion(params: {
   answer: string;
   difficulty: Difficulty;
   tags: string[];
+  specialtyTags?: string[];
+  answerFormat?: Question["answerFormat"];
+  needsAnswerPath?: boolean;
+  rationalValue?: number;
   costTemplates: CalculationTemplateSpec[];
   technique: QuestionTechnique;
   kind: QuestionKind;
   distractors: readonly string[];
 }): Question {
+  const specialtyTags = params.specialtyTags ?? deriveSpecialtyTags(params.tags);
   return {
     id: createQuestionId([params.type, params.prompt, params.answer]),
     kind: params.kind,
     type: params.type,
     prompt: params.prompt,
     answer: params.answer,
-    options: withOptions(params.answer, params.distractors, params.kind),
+    options: withOptions(params.answer, params.distractors, params.kind, params.answerFormat),
     difficulty: params.difficulty,
     tags: params.tags,
+    specialtyTags,
+    answerFormat: params.answerFormat,
+    needsAnswerPath: params.needsAnswerPath,
+    rationalValue: params.rationalValue,
     mentalCost: calculateMentalCost(params.costTemplates, params.answer),
     costTemplates: params.costTemplates,
     technique: params.technique,
@@ -101,10 +132,6 @@ function makeQuestion(params: {
 
 function ct(...templates: CalculationTemplateSpec[]): CalculationTemplateSpec[] {
   return templates;
-}
-
-function formatDecimal(value: number): string {
-  return String(Number(value.toFixed(4)));
 }
 
 function unlikeDenominatorQuestion(
@@ -123,7 +150,7 @@ function unlikeDenominatorQuestion(
     const leftNum = left.num * (common / left.den);
     const rightNum = right.num * (common / right.den);
     const resultNum = op === "+" ? leftNum + rightNum : leftNum - rightNum;
-    const answer = formatFraction({ num: resultNum, den: common });
+    const answer = formatFraction(simplifyFraction({ num: resultNum, den: common }));
     if (calculateMentalCost(costTemplates, answer) < 2) continue;
     const opSymbol = op === "+" ? "+" : "−";
 
@@ -414,6 +441,46 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       distractors: [answer + 1, answer - 1, Math.abs(a) + Math.abs(b), Math.abs(a)].map(String),
     });
   },
+  ({ difficulty, kind }) => {
+    const left = randomInt(20, difficulty === "hard" ? 99 : 49);
+    const right = randomInt(1, left - 1);
+    const answer = left - right;
+
+    return makeQuestion({
+      type: "arithmetic",
+      prompt: `${left} − ${right} = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["subtraction"],
+      specialtyTags: ["subtraction"],
+      costTemplates: ct({ kind: "integer-subtract", a: left, b: right }),
+      technique: genericTechnique("整數減法", [`${left} − ${right} = ${answer}`]),
+      kind,
+      distractors: [answer + 1, answer - 1, answer + right, left + right].map(String),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const a = randomInt(30, difficulty === "hard" ? 99 : 60);
+    const b = randomInt(5, 20);
+    const c = randomInt(2, Math.min(15, b));
+    const answer = a - b - c;
+
+    return makeQuestion({
+      type: "arithmetic",
+      prompt: `${a} − ${b} − ${c} = ?`,
+      answer: String(answer),
+      difficulty,
+      tags: ["subtraction", "working-memory"],
+      specialtyTags: ["subtraction"],
+      costTemplates: ct(
+        { kind: "integer-subtract", a, b },
+        { kind: "integer-subtract", a: a - b, b: c },
+      ),
+      technique: genericTechnique("連續減法", [`${a} − ${b} = ${a - b}`, `${a - b} − ${c} = ${answer}`]),
+      kind,
+      distractors: [answer + 1, answer - 1, a - b, a - c].map(String),
+    });
+  },
 ];
 
 /**
@@ -654,6 +721,7 @@ const cubeRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
       answer: String(answer),
       difficulty,
       tags: ["cube-root", "working-memory", "addition"],
+      specialtyTags: ["cube-root"],
       costTemplates: ct(
         { kind: "cube-root", root },
         { kind: "integer-add", a: root, b: c },
@@ -677,6 +745,7 @@ const cubeRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
     answer: String(answer),
     difficulty,
     tags: ["cube-root", "working-memory", "addition"],
+    specialtyTags: ["cube-root"],
     costTemplates: ct({ kind: "cube-root", root }, { kind: "integer-add", a: root, b: c }),
     technique: genericTechnique("先開立方根再相加", [`∛${radicand} = ${root}`, `${root} + ${c} = ${answer}`]),
     kind,
@@ -702,6 +771,7 @@ const fourthRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
       answer: String(answer),
       difficulty,
       tags: ["fourth-root", "working-memory", "addition"],
+      specialtyTags: ["fourth-root"],
       costTemplates: ct(
         { kind: "fourth-root", root },
         { kind: "integer-add", a: root, b: c },
@@ -725,6 +795,7 @@ const fourthRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
     answer: String(answer),
     difficulty,
     tags: ["fourth-root", "working-memory", "addition"],
+    specialtyTags: ["fourth-root"],
     costTemplates: ct({ kind: "fourth-root", root }, { kind: "integer-add", a: root, b: c }),
     technique: genericTechnique("先開四次方根再相加", [`⁴√${radicand} = ${root}`, `${root} + ${c} = ${answer}`]),
     kind,
@@ -931,6 +1002,9 @@ const decimalCompositeTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     answer: formatDecimal(answer),
     difficulty,
     tags: ["decimals", "addition", "multiplication", "order-of-operations", "working-memory"],
+    specialtyTags: ["decimals"],
+    needsAnswerPath: true,
+    rationalValue: answer,
     costTemplates: ct(
       { kind: "decimal-add", left, right },
       { kind: "decimal-multiply", decimal: sum, integer: multiplier },
@@ -951,7 +1025,7 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
     const leftNumerator = randomInt(1, denominator - 1);
     const rightNumerator = randomInt(1, denominator - leftNumerator);
     const answerNumerator = leftNumerator + rightNumerator;
-    const answer = `${answerNumerator}/${denominator}`;
+    const answer = formatFraction(simplifyFraction({ num: answerNumerator, den: denominator }));
 
     return makeQuestion({
       type: "fractions",
@@ -959,6 +1033,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer,
       difficulty,
       tags: ["fractions", "addition"],
+      needsAnswerPath: true,
+      rationalValue: answerNumerator / denominator,
       costTemplates: ct({ kind: "fraction-same-denom", denominator }),
       technique: sameDenominatorAddTechnique(leftNumerator, rightNumerator, denominator),
       kind,
@@ -981,20 +1057,21 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
   ({ difficulty, kind }) => {
     const denominator = pickOne(difficulty === "hard" ? [6, 8, 10, 12] : [4, 5, 8, 10]);
     const numerator = randomInt(1, denominator - 1);
-    const answer = numerator / denominator;
+    const value = numerator / denominator;
 
     return makeQuestion({
       type: "fractions",
-      prompt: `${numerator}/${denominator} = ? (小數)`,
-      answer: String(answer),
+      prompt: `${numerator}/${denominator} = ?`,
+      answer: formatDecimal(value),
       difficulty,
       tags: ["fractions", "decimals"],
-      costTemplates: ct({ kind: "fraction-to-decimal", denominator }),
-      technique: decimalConversionTechnique(numerator, denominator, answer),
+      specialtyTags: ["fractions", "decimals"],
+      needsAnswerPath: true,
+      rationalValue: value,
+      costTemplates: ct({ kind: "fraction-same-denom", denominator }),
+      technique: decimalConversionTechnique(numerator, denominator, value),
       kind,
-      distractors: [answer + 0.1, answer - 0.1, answer + 0.01, Math.max(0, answer - 0.01)].map((item) =>
-        item.toFixed(2),
-      ),
+      distractors: [value + 0.1, value - 0.1, value + 0.01, Math.max(0, value - 0.01)].map(formatDecimal),
     });
   },
   ({ difficulty, kind }) => {
@@ -1008,6 +1085,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer: formatDecimal(answer),
       difficulty,
       tags: ["decimals", "addition"],
+      needsAnswerPath: true,
+      rationalValue: answer,
       costTemplates: ct({ kind: "decimal-add", left, right }),
       technique: decimalAddTechnique(left, right, answer),
       kind,
@@ -1025,6 +1104,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer: formatDecimal(answer),
       difficulty,
       tags: ["decimals", "multiplication"],
+      needsAnswerPath: true,
+      rationalValue: answer,
       costTemplates: ct({ kind: "decimal-multiply", decimal: left, integer: right }),
       technique: decimalMultiplyTechnique(left, right, answer),
       kind,
@@ -1042,10 +1123,92 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       answer: formatDecimal(answer),
       difficulty,
       tags: ["decimals", "subtraction"],
+      needsAnswerPath: true,
+      rationalValue: answer,
       costTemplates: ct({ kind: "decimal-subtract", whole, fraction }),
       technique: decimalSubtractTechnique(whole, fraction, answer),
       kind,
       distractors: [answer + 0.1, answer - 0.1, whole + fraction, Math.max(0, answer - 1)].map(formatDecimal),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const fraction = randomProperFraction(difficulty);
+    const decimal = pickOne([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8]);
+    const op = pickOne(["+", "−", "×", "÷"] as const);
+    const fracValue = fraction.num / fraction.den;
+    let value: number;
+    let costTemplate: CalculationTemplateSpec;
+    let opTag: "addition" | "subtraction" | "multiplication" | "division";
+    let prompt: string;
+
+    switch (op) {
+      case "+":
+        value = fracValue + decimal;
+        costTemplate = { kind: "decimal-fraction-add", decimal, fraction, op: "+" };
+        opTag = "addition";
+        prompt = `${formatFraction(fraction)} + ${formatDecimal(decimal)} = ?`;
+        break;
+      case "−":
+        value = fracValue - decimal;
+        if (value <= 0) {
+          value = decimal - fracValue;
+          prompt = `${formatDecimal(decimal)} − ${formatFraction(fraction)} = ?`;
+        } else {
+          prompt = `${formatFraction(fraction)} − ${formatDecimal(decimal)} = ?`;
+        }
+        costTemplate = { kind: "decimal-fraction-subtract", decimal, fraction, op: "−" };
+        opTag = "subtraction";
+        break;
+      case "×":
+        value = fracValue * decimal;
+        costTemplate = { kind: "decimal-fraction-multiply", decimal, fraction, op: "×" };
+        opTag = "multiplication";
+        prompt = `${formatFraction(fraction)} × ${formatDecimal(decimal)} = ?`;
+        break;
+      default:
+        if (fracValue === 0) {
+          return unlikeDenominatorQuestion(difficulty, kind, "+", "addition");
+        }
+        value = decimal / fracValue;
+        costTemplate = { kind: "decimal-fraction-divide", decimal, fraction, op: "÷" };
+        opTag = "division";
+        prompt = `${formatDecimal(decimal)} ÷ ${formatFraction(fraction)} = ?`;
+        break;
+    }
+
+    return makeQuestion({
+      type: "fractions",
+      prompt,
+      answer: formatDecimal(value),
+      difficulty,
+      tags: ["fractions", "decimals", opTag],
+      specialtyTags: ["fractions", "decimals", opTag],
+      needsAnswerPath: true,
+      rationalValue: value,
+      costTemplates: ct(costTemplate),
+      technique: genericTechnique("小數與分數混合運算", [`${prompt.replace(" = ?", "")} = ${formatDecimal(value)}`]),
+      kind,
+      distractors: [value + 0.1, value - 0.1, value + 1, Math.max(0, value - 1)].map(formatDecimal),
+    });
+  },
+  ({ difficulty, kind }) => {
+    const decimal = pickOne([0.2, 0.3, 0.4, 0.5, 0.6, 0.8]);
+    const answer = decimal * decimal;
+
+    return makeQuestion({
+      type: "fractions",
+      prompt: `${formatDecimal(decimal)}² = ?`,
+      answer: formatDecimal(answer),
+      difficulty,
+      tags: ["decimals", "multiplication"],
+      specialtyTags: ["decimals", "multiplication"],
+      answerFormat: "decimal",
+      needsAnswerPath: true,
+      rationalValue: answer,
+      costTemplates: ct({ kind: "decimal-square", decimal }),
+      technique: genericTechnique("小數平方", [`${formatDecimal(decimal)}² = ${formatDecimal(answer)}`]),
+      kind,
+      distractors: [answer + 0.01, answer - 0.01, answer + 0.1, Math.max(0, answer - 0.1)].map(formatDecimal),
     });
   },
 ];
@@ -1056,31 +1219,42 @@ export const allTemplates: readonly QuestionTemplate[] = [
   ...fractionTemplates,
 ];
 
-export function templateMatchesTags(template: QuestionTemplate, tags: readonly string[]): boolean {
+export function templateMatchesTags(
+  template: QuestionTemplate,
+  tags: readonly string[],
+  useSpecialtyTags = false,
+): boolean {
   if (tags.length === 0) {
     return true;
   }
 
   const sample = template({ difficulty: "medium", kind: "fill-in" });
-  return sample.tags.some((tag) => tags.includes(tag));
+  const matchTags =
+    useSpecialtyTags && sample.specialtyTags
+      ? sample.specialtyTags
+      : useSpecialtyTags
+        ? deriveSpecialtyTags(sample.tags)
+        : sample.tags;
+  return matchTags.some((tag) => tags.includes(tag));
 }
 
 export function filterTemplates(
   templates: readonly QuestionTemplate[],
   tags?: readonly string[],
+  options?: { useSpecialtyTags?: boolean },
 ): QuestionTemplate[] {
   if (!tags || tags.length === 0) {
     return [...templates];
   }
 
-  return templates.filter((template) => templateMatchesTags(template, tags));
+  return templates.filter((template) => templateMatchesTags(template, tags, options?.useSpecialtyTags));
 }
 
 export function getQuestionTypesForTags(tags: readonly string[]): QuestionType[] {
   const types = new Set<QuestionType>();
 
   for (const template of allTemplates) {
-    if (!templateMatchesTags(template, tags)) {
+    if (!templateMatchesTags(template, tags, true)) {
       continue;
     }
 

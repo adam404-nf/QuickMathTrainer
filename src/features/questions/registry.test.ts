@@ -96,6 +96,22 @@ describe("question registry", () => {
     expect(matched).toBe(30);
   });
 
+  it("keeps weakness-focused addition sessions off cube-root specialty questions", () => {
+    for (let index = 0; index < 20; index += 1) {
+      const question = generateQuestion({
+        mode: "weakness-focused",
+        difficulty: "medium",
+        targetTags: ["addition"],
+        context: {
+          recentQuestionIds: [],
+          seenQuestionIds: new Set(),
+        },
+      });
+
+      expect(question.specialtyTags?.includes("cube-root") ?? false).toBe(false);
+    }
+  });
+
   it("generates multi-step templates in easy mixed practice", () => {
     let foundMultiStep = false;
 

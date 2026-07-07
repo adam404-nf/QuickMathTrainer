@@ -2,6 +2,11 @@ import {
   calculateCost,
   calculateQuestionCost,
   describeCost,
+  DECIMAL_TO_FRACTION_COST_SCALE,
+  FRACTION_TO_DECIMAL_COST_SCALE,
+  fractionSimplificationCost,
+  integerDivideInternalCost,
+  MULTI_STEP_COORDINATION_COST,
   type CostNode,
   type FractionOperation,
   type IntegerOperation,
@@ -29,6 +34,13 @@ export type CalculationTemplateKind =
   | "fraction-multiply"
   | "fraction-divide"
   | "fraction-to-decimal"
+  | "fraction-to-decimal-explicit"
+  | "decimal-to-fraction"
+  | "decimal-square"
+  | "decimal-fraction-add"
+  | "decimal-fraction-subtract"
+  | "decimal-fraction-multiply"
+  | "decimal-fraction-divide"
   | "decimal-add"
   | "decimal-subtract"
   | "decimal-multiply";
@@ -51,6 +63,13 @@ export type CalculationTemplateSpec =
   | { kind: "fraction-multiply"; left: Fraction; right: Fraction }
   | { kind: "fraction-divide"; left: Fraction; right: Fraction }
   | { kind: "fraction-to-decimal"; denominator: number }
+  | { kind: "fraction-to-decimal-explicit"; numerator: number; denominator: number }
+  | { kind: "decimal-to-fraction"; decimal: number; numerator: number; denominator: number }
+  | { kind: "decimal-square"; decimal: number }
+  | { kind: "decimal-fraction-add"; decimal: number; fraction: Fraction; op: "+" }
+  | { kind: "decimal-fraction-subtract"; decimal: number; fraction: Fraction; op: "−" }
+  | { kind: "decimal-fraction-multiply"; decimal: number; fraction: Fraction; op: "×" }
+  | { kind: "decimal-fraction-divide"; decimal: number; fraction: Fraction; op: "÷" }
   | { kind: "decimal-add"; left: number; right: number }
   | { kind: "decimal-subtract"; whole: number; fraction: number }
   | { kind: "decimal-multiply"; decimal: number; integer: number };
@@ -96,6 +115,29 @@ export function costNodeFromCalculationTemplate(spec: CalculationTemplateSpec): 
       return { kind: "fraction", operation: "divide", left: spec.left, right: spec.right };
     case "fraction-to-decimal":
       return { kind: "integer", operation: "divide", a: 1, b: spec.denominator };
+    case "fraction-to-decimal-explicit":
+      return {
+        kind: "integer",
+        operation: "divide",
+        a: spec.numerator,
+        b: spec.denominator,
+      };
+    case "decimal-to-fraction":
+      return { kind: "integer", operation: "add", a: spec.numerator, b: spec.denominator };
+    case "decimal-square": {
+      const parts = String(spec.decimal).split(".");
+      const scale = 10 ** (parts[1]?.length ?? 1);
+      const n = Math.round(spec.decimal * scale);
+      return { kind: "power", n, exponent: 2 };
+    }
+    case "decimal-fraction-add":
+      return { kind: "fraction", operation: "add", left: spec.fraction, right: spec.fraction };
+    case "decimal-fraction-subtract":
+      return { kind: "fraction", operation: "subtract", left: spec.fraction, right: spec.fraction };
+    case "decimal-fraction-multiply":
+      return { kind: "fraction", operation: "multiply", left: spec.fraction, right: spec.fraction };
+    case "decimal-fraction-divide":
+      return { kind: "fraction", operation: "divide", left: spec.fraction, right: spec.fraction };
     case "decimal-add":
       return { kind: "integer", operation: "add", a: Math.round(spec.left * 10), b: Math.round(spec.right * 10) };
     case "decimal-subtract":
@@ -121,8 +163,18 @@ export function costNodesFromTemplates(templates: readonly CalculationTemplateSp
   return templates.map(costNodeFromCalculationTemplate);
 }
 
-export function baseCostForTemplate(spec: CalculationTemplateSpec): number {
+export function costForTemplateSpec(spec: CalculationTemplateSpec): number {
+  if (spec.kind === "decimal-to-fraction") {
+    return fractionSimplificationCost(spec.numerator, spec.denominator) * DECIMAL_TO_FRACTION_COST_SCALE;
+  }
+  if (spec.kind === "fraction-to-decimal-explicit") {
+    return integerDivideInternalCost(spec.numerator, spec.denominator) * FRACTION_TO_DECIMAL_COST_SCALE;
+  }
   return calculateCost(costNodeFromCalculationTemplate(spec));
+}
+
+export function baseCostForTemplate(spec: CalculationTemplateSpec): number {
+  return costForTemplateSpec(spec);
 }
 
 export function unlikeDenomBaseCost(left: Fraction, right: Fraction): number {
@@ -167,7 +219,9 @@ export function calculateMentalCost(
   templates: readonly CalculationTemplateSpec[],
   answer = "",
 ): MentalCost {
-  return calculateQuestionCost(costNodesFromTemplates(templates)) + memoryCostForAnswer(answer);
+  const stepsCost = templates.reduce((sum, spec) => sum + costForTemplateSpec(spec), 0);
+  const coordination = Math.max(0, templates.length - 1) * MULTI_STEP_COORDINATION_COST;
+  return stepsCost + coordination + memoryCostForAnswer(answer);
 }
 
 export interface CostStepDescription {
