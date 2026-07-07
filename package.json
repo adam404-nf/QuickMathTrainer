@@ -26,6 +26,7 @@
   },
   "homepage": "https://github.com/adam404-nf/QuickMathTrainer#readme",
   "dependencies": {
+    "katex": "^0.17.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

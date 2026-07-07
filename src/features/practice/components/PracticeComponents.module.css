@@ -166,15 +166,20 @@
 
 .prompt {
   color: var(--color-foreground);
-  font-family: var(--font-mono);
   font-size: clamp(2rem, 9vw, 4rem);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  letter-spacing: -0.03em;
   line-height: 1.1;
   margin: 0;
   padding: var(--space-sm) 0;
   text-align: center;
+}
+
+.prompt :global(.katex) {
+  font-size: 1em;
+}
+
+.prompt :global(.katex-display) {
+  margin: 0;
 }
 
 .strategy,

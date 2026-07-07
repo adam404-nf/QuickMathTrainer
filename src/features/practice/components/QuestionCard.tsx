@@ -1,6 +1,7 @@
 import type { Question } from "../../questions/types";
 import { getSkillTagLabel } from "../../questions/tags";
 import { Card } from "../../../shared/components/Card";
+import { MathPrompt } from "../../../shared/components/MathPrompt";
 import { CostInspector } from "./CostInspector";
 import styles from "./PracticeComponents.module.css";
 
@@ -59,7 +60,7 @@ export function QuestionCard({
         </p>
       ) : null}
 
-      <p className={styles.prompt}>{question.prompt}</p>
+      <MathPrompt className={styles.prompt} text={question.prompt} />
     </Card>
   );
 }
