@@ -4,12 +4,12 @@ import {
   calculateQuestionCost,
   CHUNK_CONSTANTS,
   fractionCost,
+  fractionSimplificationCost,
   fractionToDecimalInternalCost,
   integerCost,
   integerDivideInternalCost,
   isTwoDigitMultiply,
   lcmTierMultiplier,
-  MULTI_STEP_COORDINATION_COST,
   TWO_DIGIT_MULTIPLY_BONUS,
   type CostNode,
 } from "./costModel";
@@ -33,9 +33,17 @@ import type { Difficulty, Question } from "./types";
 describe("atomic integer operations", () => {
   it.each([
     { label: "3+4", op: "add" as const, a: 3, b: 4, expected: 1 },
+    { label: "9+2", op: "add" as const, a: 9, b: 2, expected: 1 },
+    { label: "99+1", op: "add" as const, a: 99, b: 1, expected: 2 },
+    { label: "99+2", op: "add" as const, a: 99, b: 2, expected: 2 },
     { label: "7-5", op: "subtract" as const, a: 7, b: 5, expected: 1 },
     { label: "3×4", op: "multiply" as const, a: 3, b: 4, expected: 1 },
+    { label: "12×6", op: "multiply" as const, a: 12, b: 6, expected: 2 },
+    { label: "12×16", op: "multiply" as const, a: 12, b: 16, expected: 3 },
+    { label: "19×9", op: "multiply" as const, a: 19, b: 9, expected: 2 },
     { label: "8÷2", op: "divide" as const, a: 8, b: 2, expected: 1 },
+    { label: "0÷7", op: "divide" as const, a: 0, b: 7, expected: 0 },
+    { label: "99÷13", op: "divide" as const, a: 99, b: 13, expected: 3 },
   ])("$label → cost $expected", ({ op, a, b, expected }) => {
     expect(integerCost(op, a, b)).toBe(expected);
   });
@@ -43,7 +51,9 @@ describe("atomic integer operations", () => {
   it.each([
     { label: "a+0", node: { kind: "integer", operation: "add", a: 5, b: 0 } as CostNode },
     { label: "a×1", node: { kind: "integer", operation: "multiply", a: 5, b: 1 } as CostNode },
+    { label: "a×0", node: { kind: "integer", operation: "multiply", a: 5, b: 0 } as CostNode },
     { label: "a÷1", node: { kind: "integer", operation: "divide", a: 8, b: 1 } as CostNode },
+    { label: "0÷a", node: { kind: "integer", operation: "divide", a: 0, b: 8 } as CostNode },
   ])("$label is free", ({ node }) => {
     expect(calculateCost(node)).toBe(0);
   });
@@ -77,8 +87,7 @@ describe("fraction chunk calibration", () => {
 
   it("1/2+1/3 stays in easy range", () => {
     const cost = fractionCost("add", { num: 1, den: 2 }, { num: 1, den: 3 });
-    expect(cost).toBeGreaterThanOrEqual(1.5);
-    expect(cost).toBeLessThanOrEqual(8);
+    expect(cost).toBeCloseTo(5.4);
   });
 
   it("23/56+31/75 reflects large LCM and two-digit expansion", () => {
@@ -86,12 +95,21 @@ describe("fraction chunk calibration", () => {
     const simple = fractionCost("add", { num: 1, den: 2 }, { num: 1, den: 3 });
     expect(fraction).toBeGreaterThan(simple * 2);
     expect(fraction).toBeGreaterThanOrEqual(8);
-    expect(fraction).toBeLessThanOrEqual(22);
+    expect(fraction).toBeLessThanOrEqual(80);
   });
 
   it("uses configured chunk constants", () => {
-    expect(CHUNK_CONSTANTS.fractionAdd).toBe(0.9);
+    expect(CHUNK_CONSTANTS.expandFraction).toBe(0.8);
     expect(TWO_DIGIT_MULTIPLY_BONUS).toBe(1.25);
+  });
+
+  it("counts lcm chunk steps inside the chunk", () => {
+    expect(fractionCost("add", { num: 3, den: 4 }, { num: 1, den: 6 })).toBeCloseTo(6.2);
+  });
+
+  it("uses gcd tier for simplification checks", () => {
+    expect(fractionSimplificationCost(5, 6)).toBeCloseTo(1.2);
+    expect(fractionSimplificationCost(11, 12)).toBeCloseTo(1.2);
   });
 });
 
@@ -143,19 +161,18 @@ describe("cost breakdown expressions", () => {
       description.mentalCost,
     );
     expect(description.mentalCost).toBeCloseTo(calculateMentalCost(templates, "0.625"));
+    expect(description.coordinationOverhead).toBe(0);
   });
 });
 
 describe("question cost aggregation", () => {
-  it("sums chunk costs with multi-step coordination overhead", () => {
+  it("sums chunk costs without multi-step coordination overhead", () => {
     const nodes = [
       { kind: "integer", operation: "add", a: 12, b: 15 },
       { kind: "integer", operation: "multiply", a: 2, b: 27 },
     ] as const;
     const cost = mcNodes(...nodes);
-    expect(cost).toBe(
-      integerCost("add", 12, 15) + integerCost("multiply", 2, 27) + MULTI_STEP_COORDINATION_COST,
-    );
+    expect(cost).toBe(integerCost("add", 12, 15) + integerCost("multiply", 2, 27));
   });
 
   it("keeps intrinsic cost for repeated evaluation", () => {
@@ -180,10 +197,22 @@ describe("question cost aggregation", () => {
     expect(memoryCostForAnswer(answer)).toBe(expected);
   });
 
-  it("adds memory cost to the total mental cost", () => {
+  it("single-step questions do not add memory cost", () => {
     expect(
       calculateMentalCost([{ kind: "integer-add", a: 25, b: 36 }], "61"),
-    ).toBe(3.3);
+    ).toBe(3);
+  });
+
+  it("multi-step questions only add memory for intermediate results", () => {
+    expect(
+      calculateMentalCost(
+        [
+          { kind: "integer-add", a: 1, b: 2 },
+          { kind: "integer-multiply", a: 3, b: 4 },
+        ],
+        "12",
+      ),
+    ).toBe(2.1);
   });
 });
 
@@ -283,6 +312,6 @@ describe("legacy template adapter", () => {
   it("maps integer templates through cost model", () => {
     expect(
       calculateMentalCost([{ kind: "integer-add", a: 25, b: 36 }], "61"),
-    ).toBe(3.3);
+    ).toBe(3);
   });
 });

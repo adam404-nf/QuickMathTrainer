@@ -41,10 +41,10 @@
 ### 2.1 基本規則
 
 - 一位數加法、減法、乘法、除法：cost = 1
-- 進位：每次視為一次一位數加法
-- 退位：每次視為一次一位數減法
-- 乘法：標準豎式；部分積相加依加法規則
-- 除法：長除法；每輪一位數除法、乘法、減法各計 atomic cost
+- 加法只在「真的做了一次一位數加法」時收費；純寫進位不收費
+- 乘法：`a×1`、`1×a`、`×10`、`×100` 免費；乘法結果的自然展位不額外收費；部分積相加依新的加法規則計費
+- 除法：長除法只計實際發生的一位數除法／乘法／減法，不再額外收「試商 +1」
+- `0 ÷ a`（`a ≠ 0`）視為免費
 
 ### 2.2 免費操作
 
@@ -58,8 +58,9 @@ a+0, 0+a, a-0, a×1, 1×a, a÷1  → cost = 0
 | 運算 | cost |
 |------|------|
 | `3+4` | 1 |
+| `9+2` | 1 |
 | `25+36` | 3 |
-| `34-19` | 3 |
+| `12×6` | 2 |
 | `8÷2` | 1 |
 
 ---
@@ -81,29 +82,17 @@ LCMChunk
 + ExpandFractionChunk
 + IntegerChunk（分子加減）
 + FractionSimplificationChunk
-→ × FractionOperationConstant
 ```
-
-分數內部使用的整數運算會套用 `FRACTION_INTERNAL_INTEGER_FACTOR = 0.6`，避免分數題被算得過重。
-
-異分母分數加減的 internal cost 下限為 `7`，再乘上對應的 Fraction constant。
 
 ### 3.3 Compression Constants（第一版）
 
-> **v2 校準**：分數相關 chunk 常數整體調高，讓分數運算的整體 cost 更貼近真實心智負擔
-> （通分／擴分／分子運算／約分多環節疊加）。主要調大四個分數運算常數，內部子 chunk
-> （ExpandFraction / GCD / FractionSimplification）僅微調，避免多層相乘後成本過度膨脹。
+> **新規則**：移除 `FRACTION_INTERNAL_INTEGER_FACTOR = 0.6`、移除外層 `FractionAdd/Subtract/Multiply/Divide`
+> 封裝、移除異分母硬下限；分數 effective cost 直接等於內部子 chunk 的逐步加總。
 
-| Chunk kind | Constant（v1 → v2） |
+| Chunk kind | Constant |
 |---|---|
 | IntegerChunk | 1.00 |
-| ExpandFractionChunk | 0.30 → **0.35** |
-| GCDChunk | 0.35 → **0.40** |
-| FractionSimplificationChunk | 0.45 → **0.50** |
-| FractionAddChunk | 0.70 → **0.90** |
-| FractionSubtractChunk | 0.70 → **0.90** |
-| FractionMultiplyChunk | 0.55 → **0.70** |
-| FractionDivideChunk | 0.65 → **0.85** |
+| ExpandFractionChunk | **0.80** |
 | AbsoluteValueChunk | 0.80 |
 | PowerChunk / RootChunk | 0.75 |
 
@@ -117,6 +106,22 @@ LCMChunk
 | 121–300 | 0.95 |
 | > 300 | 1.15 |
 
+`LCM chunk` 的 cost 定義為：
+
+```text
+lcmChunkCost = (gcdSteps + lcmMultiplySteps) × lcmTierMultiplier
+```
+
+例如 `lcm(4,6)`：
+
+```text
+gcd(4,6) steps = 3
+(4/2)×6 = 2×6 cost = 1
+total steps = 4
+lcm = 12 => tier 0.4
+=> lcmChunkCost = 4 × 0.4 = 1.6
+```
+
 ### 3.5 兩位數乘法加成
 
 當 LCM 或 Expand 步驟涉及 **兩位數 × 兩位數** 時：
@@ -125,7 +130,32 @@ LCMChunk
 effectiveCost × 1.25
 ```
 
-### 3.6 小數與換算延伸 Chunk
+### 3.6 GCD / 約分分級權重
+
+約分不再使用固定 `fractionSimplification = 0.5`，而是依 Euclid steps 數決定 multiplier：
+
+| steps 範圍 | Tier multiplier |
+|---|---|
+| `x <= 3` | 0.40 |
+| `3 < x <= 6` | 0.60 |
+| `6 < x <= 10` | 0.80 |
+| `x > 10` | 1.00 |
+
+若 `gcd = 1`，約分檢查成本為：
+
+```text
+fractionSimplificationCost = gcdSteps × gcdTierMultiplier(gcdSteps)
+```
+
+若 `gcd > 1`，則為：
+
+```text
+fractionSimplificationCost
+= (gcdSteps + numeratorDivideCost + denominatorDivideCost)
+× gcdTierMultiplier(gcdSteps)
+```
+
+### 3.7 小數與換算延伸 Chunk
 
 小數題與「小數↔分數換算」題不新增獨立壓縮常數，而是**複用既有 Chunk**，僅在必要處乘上固定的換算 scale。對應實作於 [`calculationTemplates.ts`](../src/features/questions/calculationTemplates.ts) 的 `costForTemplateSpec()` 與 `costNodeFromCalculationTemplate()`。
 
@@ -156,17 +186,19 @@ effectiveCost × 1.25
 
 ---
 
-## 4. 多步驟題目與 Memory Cost
+## 4. 中間結果記憶成本
 
-一道題若包含多個 Chunk，總 cost 為各 Chunk effective cost 之和，再加上多步驟協調成本與答案記憶成本：
+一道題的總 cost 為各 Chunk effective cost 之和，再加上「需要暫存的中間結果」的記憶成本：
 
 ```text
-questionCost = Σ chunkCost + max(0, stepCount - 1) × 1 + memoryCost(answer)
+questionCost = Σ chunkCost + Σ memoryCost(intermediateResult_i)
 ```
+
+若有 `N` 個 templates，最多只會有 `N-1` 個需要記住的中間結果；單步題 `memory cost = 0`。
 
 ### 4.1 Memory Cost
 
-答案算完後，依「最後需要在腦中暫存的答案型態」計算 `memoryCost(answer)`：
+每一步完成後，若後面還有下一步需要用到該結果，才依「該步結果的型態」計算 `memoryCost(stepResult)`；最終答案不另收 memory cost。
 
 | 答案型別 | 規則 | cost |
 |---|---|---|
@@ -175,7 +207,7 @@ questionCost = Σ chunkCost + max(0, stepCount - 1) × 1 + memoryCost(answer)
 | 分數 | 一律固定 | `1` |
 | 符號答案 | 如 `|x|` | `0.1` |
 
-範例：`7 → 0.1`、`42 → 0.3`、`350 → 0.8`、`1234 → 1`、`0.125 → 0.8`、`3/4 → 1`。
+範例：單步題 `3/4 + 1/6` 不收 memory；兩步題若第一步結果為 `42`，則該中間結果的 memory cost 為 `0.3`。
 
 ---
 
@@ -217,13 +249,13 @@ questionCost = Σ chunkCost + max(0, stepCount - 1) × 1 + memoryCost(answer)
   - `23–25`: 40%
   - `25–28`: 40%
 
-powers 等天生 cost 偏低的題型（平方、根號以記憶提取為主），透過**多步冪次複合題**（如 `a² + b²`、`a² + c`）以較大的 base 與多步驟協調成本（見 §4 的 `max(0, stepCount - 1) × 1`）把 cost 抬升進入與其他題型相同的 range，而不是替 powers 另設一套較低的範圍。
+powers 等天生 cost 偏低的題型（平方、根號以記憶提取為主），透過**多步冪次複合題**（如 `a² + b²`、`a² + c`）與較大的 base 把 cost 抬升進入與其他題型相同的 range，而不是替 powers 另設一套較低的範圍。
 
 ### 5.2 生成策略
 
 1. 抽 difficulty → 取得**全域** target cost range（不分題型）。
 2. 依 difficulty 的權重分佈抽出一個 target band。
-3. 生成 base template → 計算 cost（含 memory cost）。
+3. 生成 base template → 計算 cost（含中間結果 memory cost）。
 4. cost 在 target band 內 → 使用題目。
 5. cost 太低 → 持續追加 compatible template（整數／分數／冪次步驟），直到 cost 進入 target band；步驟數量沒有硬性上限。
 6. cost 太高 → **保留 template 結構、重抽較小的數字**，讓 cost 落回範圍（而非放寬 range）。
@@ -269,7 +301,7 @@ cap = ceil(questionLimit / eligibleTypeCount) + 1
 
 ### 7.2 兩路徑 cost 組成
 
-`resolveAnswerPath()` 透過 `buildFractionPathCost()` / `buildDecimalPathCost()` 把題目的 `costTemplates` **重新映射**成目標形式的 chunk 序列，再以 §4 公式（Σ chunk + 多步協調 + memory）計算：
+`resolveAnswerPath()` 透過 `buildFractionPathCost()` / `buildDecimalPathCost()` 把題目的 `costTemplates` **重新映射**成目標形式的 chunk 序列，再以 §4 公式（Σ chunk + 中間結果 memory）計算：
 
 **分數路徑（`answerFormat === "fraction"`）**
 
@@ -302,7 +334,7 @@ fraction-to-decimal-explicit（每個分數運算元換成小數，× FRACTION_T
 
 ## 8. 驗證基準（`mentalCost.test.ts`）
 
-- Atomic：`3+4`、`25+36`、`34-19`
+- Atomic：`3+4`、`9+2`、`25+36`、`12×6`
 - Fraction：`1/2+1/3` 落在 easy 範圍；大 LCM 分數加減明顯高於簡單題
 - Memory Cost：整數／小數有效數字／分數都符合對應分級
 - 換算一致性：`0.375` 換算 cost 與 `375/1000` 約分 cost 在同一尺度

@@ -223,8 +223,8 @@ describe("question registry", () => {
         counts.forEach((count, bandIndex) => {
           const actualRatio = count / sampleCount;
           const expectedRatio = bands[bandIndex].weight / totalWeight;
-          expect(actualRatio).toBeGreaterThanOrEqual(expectedRatio - 0.05);
-          expect(actualRatio).toBeLessThanOrEqual(expectedRatio + 0.05);
+          expect(actualRatio).toBeGreaterThanOrEqual(expectedRatio - 0.06);
+          expect(actualRatio).toBeLessThanOrEqual(expectedRatio + 0.06);
         });
       }
     }

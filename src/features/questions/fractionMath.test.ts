@@ -23,10 +23,15 @@ describe("fractionMath", () => {
     const medium = unlikeDenomBaseCost({ num: 1, den: 7 }, { num: 1, den: 12 });
     const rejected = unlikeDenomBaseCost({ num: 1, den: 7 }, { num: 1, den: 17 });
 
-    expect(small).toBeGreaterThan(2);
+    expect(small).toBeCloseTo(5.4);
     expect(small).toBeLessThan(8);
     expect(medium).toBeGreaterThanOrEqual(small);
     expect(rejected).toBe(0);
+  });
+
+  it("charges denominator expansion for unlike denominators", () => {
+    const cost = unlikeDenomBaseCost({ num: 3, den: 4 }, { num: 1, den: 6 });
+    expect(cost).toBeCloseTo(6.2);
   });
 
   it("builds a fraction composite with valid answer", () => {

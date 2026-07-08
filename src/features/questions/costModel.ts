@@ -18,13 +18,7 @@ export const CHUNK_CONSTANTS = {
   // 分數相關 chunk 常數整體調高，讓分數運算的整體 cost 更貼近其真實心智負擔
   // （通分、擴分、分子運算、約分等多環節疊加），避免分數題被系統性低估。
   // 主要調大四個分數運算常數，內部子 chunk 只微調以免多層相乘後過度膨脹。
-  expandFraction: 0.35,
-  gcd: 0.4,
-  fractionSimplification: 0.5,
-  fractionAdd: 0.9,
-  fractionSubtract: 0.9,
-  fractionMultiply: 0.7,
-  fractionDivide: 0.85,
+  expandFraction: 0.8,
   absoluteValue: 0.8,
   power: 0.75,
   root: 0.75,
@@ -33,8 +27,8 @@ export const CHUNK_CONSTANTS = {
 
 export const TWO_DIGIT_MULTIPLY_BONUS = 1.25;
 
-/** 每多一個計算步驟的協調成本（stepCount - 1 倍）。 */
-export const MULTI_STEP_COORDINATION_COST = 1;
+/** 已停用：多步驟協調成本改由中間結果的記憶成本吸收。 */
+export const MULTI_STEP_COORDINATION_COST = 0;
 
 /**
  * 分數→小數換算 chunk 乘數（可調常數，用來平衡 cost；目前設為 1）。
@@ -59,18 +53,6 @@ export function isTwoDigitMultiply(a: number, b: number): boolean {
   const absA = Math.abs(a);
   const absB = Math.abs(b);
   return absA >= 10 && absA <= 99 && absB >= 10 && absB <= 99;
-}
-
-function digitsOf(n: number): number[] {
-  const value = Math.abs(n);
-  if (value === 0) return [0];
-  const digits: number[] = [];
-  let remaining = value;
-  while (remaining > 0) {
-    digits.push(remaining % 10);
-    remaining = Math.floor(remaining / 10);
-  }
-  return digits;
 }
 
 function isFreeAdd(a: number, b: number): boolean {
@@ -98,13 +80,17 @@ export function integerAddInternalCost(a: number, b: number): number {
   let remainingB = Math.abs(b);
 
   while (remainingA > 0 || remainingB > 0 || carry > 0) {
-    cost += 1;
     const digitA = remainingA % 10;
     const digitB = remainingB % 10;
-    const sum = digitA + digitB + carry;
-    if (sum >= 10) {
+    const partial = digitA + digitB;
+    const hasDigitAddition = digitA !== 0 && digitB !== 0;
+    if (hasDigitAddition) {
       cost += 1;
     }
+    if (carry > 0 && partial > 0) {
+      cost += 1;
+    }
+    const sum = partial + carry;
     carry = sum >= 10 ? 1 : 0;
     remainingA = Math.floor(remainingA / 10);
     remainingB = Math.floor(remainingB / 10);
@@ -140,27 +126,48 @@ export function integerSubtractInternalCost(a: number, b: number): number {
 
 export function integerMultiplyInternalCost(a: number, b: number): number {
   if (isFreeMultiply(a, b)) return 0;
-
-  const digitsA = digitsOf(a);
-  const digitsB = digitsOf(b);
-  let cost = 0;
-  const partials: number[] = [];
-
-  for (let i = 0; i < digitsB.length; i += 1) {
-    let carry = 0;
-    let partial = 0;
-    for (let j = 0; j < digitsA.length; j += 1) {
-      cost += 1;
-      const product = digitsA[j] * digitsB[i] + carry;
-      carry = Math.floor(product / 10);
-      partial += (product % 10) * 10 ** j;
+  if (Math.abs(a) <= 9 && Math.abs(b) <= 9) return 1;
+  if (Math.abs(a) <= 9 && Math.abs(b) > 9) {
+    let cost = 0;
+    let remainingB = Math.abs(b);
+    while (remainingB > 0) {
+      cost += integerMultiplyInternalCost(a, remainingB % 10);
+      remainingB = Math.floor(remainingB / 10);
     }
-    if (carry > 0) {
-      partial += carry * 10 ** digitsA.length;
-    }
-    partials.push(partial * 10 ** i);
+    return cost;
   }
 
+  let cost = 0;
+  const partials: number[] = [];
+  const absA = Math.abs(a);
+  const absB = Math.abs(b);
+  let remainingB = absB;
+  let shift = 0;
+
+  while (remainingB > 0) {
+    const digitB = remainingB % 10;
+    let partial = 0;
+    let running = 0;
+    let remainingA = absA;
+    let digitShift = 0;
+
+    while (remainingA > 0) {
+      const digitA = remainingA % 10;
+      const piece = digitA * digitB * 10 ** digitShift;
+      if (piece !== 0) {
+        cost += integerMultiplyInternalCost(digitA, digitB);
+        cost += integerAddInternalCost(running, piece);
+        running += piece;
+        partial = running;
+      }
+      remainingA = Math.floor(remainingA / 10);
+      digitShift += 1;
+    }
+
+    partials.push(partial * 10 ** shift);
+    remainingB = Math.floor(remainingB / 10);
+    shift += 1;
+  }
   let running = 0;
   for (const partial of partials) {
     cost += integerAddInternalCost(running, partial);
@@ -172,11 +179,12 @@ export function integerMultiplyInternalCost(a: number, b: number): number {
 
 export function integerDivideInternalCost(dividend: number, divisor: number): number {
   if (divisor === 0) return 4;
+  if (dividend === 0) return 0;
   if (isFreeDivide(dividend, divisor)) return 0;
 
   const absDivisor = Math.abs(divisor);
   const absDividend = Math.abs(dividend);
-  if (absDivisor > absDividend) return 1;
+  if (absDivisor > absDividend) return 0;
 
   if (absDivisor <= 9 && absDividend <= 99) {
     const quotient = absDividend / absDivisor;
@@ -189,7 +197,6 @@ export function integerDivideInternalCost(dividend: number, divisor: number): nu
   let remainder = absDividend;
 
   while (remainder >= absDivisor) {
-    cost += 1;
     const quotientDigit = Math.floor(remainder / absDivisor);
     const product = quotientDigit * absDivisor;
     cost += integerMultiplyInternalCost(quotientDigit, absDivisor);
@@ -243,14 +250,11 @@ export function integerCost(operation: IntegerOperation, a: number, b: number): 
   return integerInternalCost(operation, a, b) * CHUNK_CONSTANTS.integer;
 }
 
-const FRACTION_INTERNAL_INTEGER_FACTOR = 0.6;
-const MIN_UNLIKE_DENOM_INTERNAL = 7;
-
 function fractionIntegerInternalCost(operation: IntegerOperation, a: number, b: number): number {
-  return integerInternalCost(operation, a, b) * FRACTION_INTERNAL_INTEGER_FACTOR;
+  return integerInternalCost(operation, a, b);
 }
 
-function gcdInternalCost(a: number, b: number): number {
+function gcdStepCount(a: number, b: number): number {
   let steps = 0;
   let x = Math.abs(a);
   let y = Math.abs(b);
@@ -260,7 +264,14 @@ function gcdInternalCost(a: number, b: number): number {
     x = y;
     y = remainder;
   }
-  return Math.max(1, steps) * CHUNK_CONSTANTS.gcd;
+  return Math.max(1, steps);
+}
+
+function gcdTierMultiplier(steps: number): number {
+  if (steps <= 3) return 0.4;
+  if (steps <= 6) return 0.6;
+  if (steps <= 10) return 0.8;
+  return 1;
 }
 
 function applyTwoDigitBonus(cost: number, operands: Array<[number, number]>): number {
@@ -278,12 +289,7 @@ function lcmChunkCost(leftDen: number, rightDen: number): number {
     [leftDen, rightDen],
   ];
 
-  let internal =
-    gcdInternalCost(leftDen, rightDen) +
-    fractionIntegerInternalCost("multiply", reducedA, rightDen);
-
-  internal = Math.max(internal, 2);
-
+  const internal = gcdStepCount(leftDen, rightDen) + fractionIntegerInternalCost("multiply", reducedA, rightDen);
   let effective = internal * lcmTierMultiplier(common);
   effective = applyTwoDigitBonus(effective, operands);
   return effective;
@@ -291,8 +297,13 @@ function lcmChunkCost(leftDen: number, rightDen: number): number {
 
 function expandFractionCost(numerator: number, denominator: number, commonDen: number): number {
   const scale = commonDen / denominator;
-  const operands: Array<[number, number]> = [[numerator, scale]];
-  let internal = fractionIntegerInternalCost("multiply", numerator, scale);
+  const operands: Array<[number, number]> = [
+    [numerator, scale],
+    [denominator, scale],
+  ];
+  let internal =
+    fractionIntegerInternalCost("multiply", numerator, scale) +
+    fractionIntegerInternalCost("multiply", denominator, scale);
   internal = Math.max(internal, scale === 1 ? 0 : 1);
   let effective = internal * CHUNK_CONSTANTS.expandFraction;
   effective = applyTwoDigitBonus(effective, operands);
@@ -301,29 +312,16 @@ function expandFractionCost(numerator: number, denominator: number, commonDen: n
 
 export function fractionSimplificationCost(numerator: number, denominator: number): number {
   const shared = fractionGcd(numerator, denominator);
+  const steps = gcdStepCount(numerator, denominator);
+  const multiplier = gcdTierMultiplier(steps);
   if (shared <= 1) {
-    return gcdInternalCost(numerator, denominator) * CHUNK_CONSTANTS.fractionSimplification;
+    return steps * multiplier;
   }
   const internal =
-    gcdInternalCost(numerator, denominator) +
+    steps +
     fractionIntegerInternalCost("divide", numerator, shared) +
     fractionIntegerInternalCost("divide", denominator, shared);
-  return internal * CHUNK_CONSTANTS.fractionSimplification;
-}
-
-function fractionOperationConstant(operation: FractionOperation): number {
-  switch (operation) {
-    case "add":
-      return CHUNK_CONSTANTS.fractionAdd;
-    case "subtract":
-      return CHUNK_CONSTANTS.fractionSubtract;
-    case "multiply":
-      return CHUNK_CONSTANTS.fractionMultiply;
-    case "divide":
-      return CHUNK_CONSTANTS.fractionDivide;
-    default:
-      return 1;
-  }
+  return internal * multiplier;
 }
 
 export function fractionInternalCost(operation: FractionOperation, left: Fraction, right: Fraction): number {
@@ -372,14 +370,7 @@ export function fractionInternalCost(operation: FractionOperation, left: Fractio
 }
 
 export function fractionCost(operation: FractionOperation, left: Fraction, right: Fraction): number {
-  let internal = fractionInternalCost(operation, left, right);
-  if (
-    (operation === "add" || operation === "subtract") &&
-    left.den !== right.den
-  ) {
-    internal = Math.max(internal, MIN_UNLIKE_DENOM_INTERNAL);
-  }
-  return internal * fractionOperationConstant(operation);
+  return fractionInternalCost(operation, left, right);
 }
 
 function powerInternalCost(n: number, exponent: 2 | 3 | 4): number {
@@ -425,8 +416,7 @@ export function calculateCost(node: CostNode): number {
 }
 
 export function calculateQuestionCost(nodes: readonly CostNode[]): number {
-  const base = nodes.reduce((total, node) => total + calculateCost(node), 0);
-  return base + Math.max(0, nodes.length - 1) * MULTI_STEP_COORDINATION_COST;
+  return nodes.reduce((total, node) => total + calculateCost(node), 0);
 }
 
 export interface CostBreakdown {
@@ -451,10 +441,8 @@ export function describeCost(node: CostNode): {
 
   if (node.kind === "fraction") {
     const internal = fractionInternalCost(node.operation, node.left, node.right);
-    const constant = fractionOperationConstant(node.operation);
-    const effective = internal * constant;
-    breakdown.push({ label: `fraction-${node.operation}`, internalCost: internal, effectiveCost: effective });
-    return { node, effectiveCost: effective, breakdown };
+    breakdown.push({ label: `fraction-${node.operation}`, internalCost: internal, effectiveCost: internal });
+    return { node, effectiveCost: internal, breakdown };
   }
 
   const effective = calculateCost(node);

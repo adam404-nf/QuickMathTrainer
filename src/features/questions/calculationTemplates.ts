@@ -5,7 +5,6 @@ import {
   FRACTION_TO_DECIMAL_COST_SCALE,
   fractionSimplificationCost,
   fractionToDecimalInternalCost,
-  MULTI_STEP_COORDINATION_COST,
   type CostNode,
   type FractionOperation,
   type IntegerOperation,
@@ -220,11 +219,13 @@ export function memoryCostForAnswer(answer: string): number {
 
 export function calculateMentalCost(
   templates: readonly CalculationTemplateSpec[],
-  answer = "",
+  _answer = "",
 ): MentalCost {
   const stepsCost = templates.reduce((sum, spec) => sum + costForTemplateSpec(spec), 0);
-  const coordination = Math.max(0, templates.length - 1) * MULTI_STEP_COORDINATION_COST;
-  return stepsCost + coordination + memoryCostForAnswer(answer);
+  const memory = templates
+    .slice(0, -1)
+    .reduce((sum, spec) => sum + memoryCostForAnswer(resultForTemplate(spec)), 0);
+  return stepsCost + memory;
 }
 
 export interface CostStepDescription {
@@ -369,12 +370,78 @@ function describeStep(spec: CalculationTemplateSpec): { label: string; expressio
   }
 }
 
+function resultForTemplate(spec: CalculationTemplateSpec): string {
+  switch (spec.kind) {
+    case "integer-add":
+      return String(spec.a + spec.b);
+    case "integer-subtract":
+      return String(spec.a - spec.b);
+    case "integer-multiply":
+      return String(spec.a * spec.b);
+    case "integer-divide":
+      return formatNumber(spec.dividend / spec.divisor);
+    case "square":
+      return String(spec.n ** 2);
+    case "cube":
+      return String(spec.n ** 3);
+    case "fourth-power":
+      return String(spec.n ** 4);
+    case "square-root":
+      return formatNumber(Math.sqrt(spec.radicand));
+    case "cube-root":
+      return String(spec.root);
+    case "fourth-root":
+      return String(spec.root);
+    case "fraction-same-denom": {
+      const f: Fraction = { num: 1, den: spec.denominator };
+      return formatFraction(fractionOpResult("+", f, f));
+    }
+    case "fraction-unlike-denom":
+      return formatFraction(fractionOpResult("+", spec.left, spec.right));
+    case "fraction-multiply":
+      return formatFraction(fractionOpResult("×", spec.left, spec.right));
+    case "fraction-divide":
+      return formatFraction(fractionOpResult("÷", spec.left, spec.right));
+    case "fraction-to-decimal":
+      return formatNumber(1 / spec.denominator);
+    case "fraction-to-decimal-explicit":
+      return formatNumber(spec.numerator / spec.denominator);
+    case "decimal-to-fraction":
+      return formatFraction(simplifyFraction({ num: spec.numerator, den: spec.denominator }));
+    case "decimal-square":
+      return formatNumber(spec.decimal ** 2);
+    case "decimal-add":
+      return formatNumber(spec.left + spec.right);
+    case "decimal-subtract":
+      return formatNumber(spec.whole - spec.fraction);
+    case "decimal-multiply":
+      return formatNumber(spec.decimal * spec.integer);
+    case "decimal-fraction-add":
+    case "decimal-fraction-subtract":
+    case "decimal-fraction-multiply":
+    case "decimal-fraction-divide": {
+      const fractionValue = spec.fraction.num / spec.fraction.den;
+      const numericResult =
+        spec.op === "+"
+          ? spec.decimal + fractionValue
+          : spec.op === "−"
+            ? spec.decimal - fractionValue
+            : spec.op === "×"
+              ? spec.decimal * fractionValue
+              : spec.decimal / fractionValue;
+      return formatNumber(numericResult);
+    }
+    default:
+      return "";
+  }
+}
+
 export interface MentalCostDescription {
   templates: readonly CalculationTemplateSpec[];
   steps: CostStepDescription[];
   /** 各步 effective cost 之和（不含多步驟協調成本）。 */
   stepsCost: number;
-  /** 多步驟協調成本：max(0, stepCount - 1) × MULTI_STEP_COORDINATION_COST。 */
+  /** 已停用：多步驟協調成本改由中間結果記憶成本吸收。 */
   coordinationOverhead: number;
   memoryCost: number;
   mentalCost: MentalCost;
@@ -382,7 +449,7 @@ export interface MentalCostDescription {
 
 export function describeMentalCost(
   templates: readonly CalculationTemplateSpec[],
-  answer = "",
+  _answer = "",
 ): MentalCostDescription {
   // 每步 effective cost 直接取自 costForTemplateSpec，確保與實際 mentalCost 同源
   // （含分數↔小數換算的特殊計算），避免過程各步加總對不上總 cost。
@@ -392,9 +459,11 @@ export function describeMentalCost(
     return { label, expression, internalCost: effectiveCost, effectiveCost };
   });
 
-  const memoryCost = memoryCostForAnswer(answer);
+  const memoryCost = templates
+    .slice(0, -1)
+    .reduce((sum, spec) => sum + memoryCostForAnswer(resultForTemplate(spec)), 0);
   const stepsCost = steps.reduce((sum, step) => sum + step.effectiveCost, 0);
-  const coordinationOverhead = Math.max(0, templates.length - 1) * MULTI_STEP_COORDINATION_COST;
+  const coordinationOverhead = 0;
   const mentalCost = stepsCost + coordinationOverhead + memoryCost;
 
   return {
