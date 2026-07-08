@@ -39,7 +39,7 @@ describe("CostInspector", () => {
     expect(screen.getByText("整數乘法")).toBeInTheDocument();
     expect(screen.getByText("難度標準範圍")).toBeInTheDocument();
     expect(screen.getByText("記憶成本")).toBeInTheDocument();
-    expect(screen.getByText("+0.3")).toBeInTheDocument();
+    expect(screen.getByText("+1.0")).toBeInTheDocument();
   });
 
   it("shows each numeric step with its actual expression and cost", async () => {

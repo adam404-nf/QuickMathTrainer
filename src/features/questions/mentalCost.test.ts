@@ -182,16 +182,17 @@ describe("question cost aggregation", () => {
   });
 
   it.each([
-    { answer: "7", expected: 0.1 },
-    { answer: "42", expected: 0.3 },
-    { answer: "350", expected: 0.8 },
-    { answer: "1234", expected: 1 },
-    { answer: "-42", expected: 0.3 },
+    { answer: "7", expected: 0.5 },
+    { answer: "42", expected: 1 },
+    { answer: "350", expected: 1.5 },
+    { answer: "1234", expected: 2 },
+    { answer: "-42", expected: 1 },
     { answer: "3/4", expected: 1 },
     { answer: "5/6", expected: 1 },
-    { answer: "0.5", expected: 0.1 },
-    { answer: "1.25", expected: 0.8 },
-    { answer: "0.125", expected: 0.8 },
+    { answer: "23/56", expected: 2 },
+    { answer: "0.5", expected: 0.5 },
+    { answer: "1.25", expected: 1.5 },
+    { answer: "0.125", expected: 1.5 },
     { answer: "|x|", expected: 0.1 },
   ])("assigns memory cost for $answer", ({ answer, expected }) => {
     expect(memoryCostForAnswer(answer)).toBe(expected);
@@ -212,7 +213,7 @@ describe("question cost aggregation", () => {
         ],
         "12",
       ),
-    ).toBe(2.1);
+    ).toBe(2.5);
   });
 });
 

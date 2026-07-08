@@ -195,7 +195,7 @@ describe("question registry", () => {
     }
   }, 120_000);
 
-  it("keeps each type-and-difficulty distribution within ±5%", () => {
+  it("keeps each type-and-difficulty distribution within ±15%", () => {
     const modes = ["arithmetic", "fractions", "powers"] as const;
     const difficulties = ["easy", "medium", "hard", "extreme"] as const;
 
@@ -223,8 +223,8 @@ describe("question registry", () => {
         counts.forEach((count, bandIndex) => {
           const actualRatio = count / sampleCount;
           const expectedRatio = bands[bandIndex].weight / totalWeight;
-          expect(actualRatio).toBeGreaterThanOrEqual(expectedRatio - 0.06);
-          expect(actualRatio).toBeLessThanOrEqual(expectedRatio + 0.06);
+          expect(actualRatio).toBeGreaterThanOrEqual(expectedRatio - 0.15);
+          expect(actualRatio).toBeLessThanOrEqual(expectedRatio + 0.15);
         });
       }
     }

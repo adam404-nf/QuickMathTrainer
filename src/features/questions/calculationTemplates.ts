@@ -187,10 +187,16 @@ export function unlikeDenomBaseCost(left: Fraction, right: Fraction): number {
 }
 
 function memoryCostForDigitCount(digits: number): number {
-  if (digits <= 1) return 0.1;
-  if (digits === 2) return 0.3;
-  if (digits === 3) return 0.8;
-  return 1;
+  if (digits <= 1) return 0.5;
+  if (digits === 2) return 1;
+  if (digits === 3) return 1.5;
+  return 2;
+}
+
+function memoryCostForIntegerAbsoluteValue(value: number): number {
+  const abs = Math.abs(value);
+  const digits = abs === 0 ? 1 : Math.floor(Math.log10(abs)) + 1;
+  return memoryCostForDigitCount(digits);
 }
 
 export function memoryCostForAnswer(answer: string): number {
@@ -200,14 +206,16 @@ export function memoryCostForAnswer(answer: string): number {
     return 0.1;
   }
 
-  if (/^-?\d+\/-?\d+$/.test(normalized)) {
-    return 1;
+  const fractionMatch = normalized.match(/^(-?\d+)\/(-?\d+)$/);
+  if (fractionMatch) {
+    return (
+      memoryCostForIntegerAbsoluteValue(Number(fractionMatch[1])) +
+      memoryCostForIntegerAbsoluteValue(Number(fractionMatch[2]))
+    );
   }
 
   if (/^-?\d+$/.test(normalized)) {
-    const value = Math.abs(Number(normalized));
-    const digits = value === 0 ? 1 : Math.floor(Math.log10(value)) + 1;
-    return memoryCostForDigitCount(digits);
+    return memoryCostForIntegerAbsoluteValue(Number(normalized));
   }
 
   if (/^-?(?:\d+\.\d+|\d+\.|\.\d+)$/.test(normalized)) {
