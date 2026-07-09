@@ -87,7 +87,8 @@ export function questionTypeWeight(input: GenerateQuestionInput, type: QuestionT
   const hard = mixedHardTemplateTarget(input.difficulty);
   if (type === "fractions") return hard * 0.55;
   if (type === "powers") return hard * 0.45;
-  return 1 - hard;
+  const arithEase = input.difficulty === "easy" ? 0.82 : 1;
+  return (1 - hard) * arithEase;
 }
 
 export function mixedHardTemplateTarget(difficulty: Difficulty): number {
@@ -222,7 +223,7 @@ export function categoryWeightForMode(
     const weights: Record<TemplateCategory, number> = {
       integer: 0.1,
       fraction: 0.45,
-      decimal: 0.2,
+      decimal: 0.17,
       power: 0,
       conversion: 0.1,
       "mixed-decimal-fraction": 0.15,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resultForTemplate } from "./calculationTemplates";
 import {
   classifyCostBand,
   costRangeForDifficulty,
@@ -6,9 +7,23 @@ import {
   matchesMentalCostBucket,
   maxQuestionsPerType,
 } from "./mentalCost";
+import { isZeroStepResult } from "./nonZeroStep";
 import { availableQuestionTypes, generateQuestion, questionMatchesTargets } from "./registry";
-import { questionTypeWeight } from "./selectionPolicy";
+import {
+  isDecimalTemplateCategory,
+  isHardTemplateCategory,
+  mixedHardTemplateTarget,
+  questionTypeWeight,
+  type TemplateCategory,
+} from "./selectionPolicy";
 import type { QuestionType } from "./types";
+
+function categoryOf(q: { templateCategory?: TemplateCategory }): TemplateCategory {
+  if (!q.templateCategory) {
+    throw new Error("question missing templateCategory metadata");
+  }
+  return q.templateCategory;
+}
 
 describe("question registry", () => {
   it("exposes the first MVP generator group", () => {
@@ -314,4 +329,149 @@ describe("registry selectionPolicy integration", () => {
       expect(matchesMentalCostBucket(q.mentalCost, range)).toBe(true);
     }
   });
+});
+
+describe("selectionPolicy Monte Carlo", () => {
+  it("keeps mixed decimal primary templates near 10%", () => {
+    const n = 1000;
+    let decimal = 0;
+    for (let i = 0; i < n; i += 1) {
+      const q = generateQuestion({
+        mode: "mixed",
+        difficulty: "medium",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      if (isDecimalTemplateCategory(categoryOf(q))) decimal += 1;
+    }
+    const ratio = decimal / n;
+    expect(ratio).toBeGreaterThanOrEqual(0.05);
+    expect(ratio).toBeLessThanOrEqual(0.15);
+  }, 120_000);
+
+  it("keeps fractions specialty decimal primaries near 20%", () => {
+    const n = 1000;
+    let decimal = 0;
+    for (let i = 0; i < n; i += 1) {
+      const q = generateQuestion({
+        mode: "fractions",
+        difficulty: "medium",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      if (isDecimalTemplateCategory(categoryOf(q))) decimal += 1;
+    }
+    const ratio = decimal / n;
+    expect(ratio).toBeGreaterThanOrEqual(0.14);
+    expect(ratio).toBeLessThanOrEqual(0.26);
+  }, 120_000);
+
+  it("hard-excludes non-integer categories in arithmetic mode", () => {
+    for (let i = 0; i < 500; i += 1) {
+      const q = generateQuestion({
+        mode: "arithmetic",
+        difficulty: "medium",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      expect(categoryOf(q)).toBe("integer");
+      expect(q.type).toBe("arithmetic");
+      for (const spec of q.costTemplates ?? []) {
+        expect(spec.kind.startsWith("fraction")).toBe(false);
+        expect(spec.kind.startsWith("decimal")).toBe(false);
+        expect(spec.kind.includes("decimal-fraction")).toBe(false);
+      }
+    }
+  }, 120_000);
+
+  it("hard-excludes power category in fractions mode", () => {
+    for (let i = 0; i < 500; i += 1) {
+      const q = generateQuestion({
+        mode: "fractions",
+        difficulty: "hard",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      expect(categoryOf(q)).not.toBe("power");
+      expect(q.type).not.toBe("powers");
+    }
+  }, 120_000);
+
+  it("matches mixed hard-template totals by difficulty", () => {
+    for (const difficulty of ["easy", "medium", "hard", "extreme"] as const) {
+      const target = mixedHardTemplateTarget(difficulty);
+      const n = 1000;
+      let hard = 0;
+      for (let i = 0; i < n; i += 1) {
+        const q = generateQuestion({
+          mode: "mixed",
+          difficulty,
+          context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+        });
+        if (isHardTemplateCategory(categoryOf(q))) hard += 1;
+      }
+      const ratio = hard / n;
+      expect(ratio).toBeGreaterThanOrEqual(target - 0.08);
+      expect(ratio).toBeLessThanOrEqual(target + 0.08);
+    }
+  }, 300_000);
+
+  it("keeps weakness decimals highly focused and above 10% decimal cap", () => {
+    const n = 300;
+    let matched = 0;
+    let decimalPrimary = 0;
+    for (let i = 0; i < n; i += 1) {
+      const q = generateQuestion({
+        mode: "weakness-focused",
+        difficulty: "medium",
+        targetTags: ["decimals"],
+        targetTypes: ["arithmetic", "fractions"],
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      if (questionMatchesTargets(q, ["decimals"])) matched += 1;
+      if (isDecimalTemplateCategory(categoryOf(q))) decimalPrimary += 1;
+    }
+    expect(matched / n).toBeGreaterThanOrEqual(0.6);
+    expect(decimalPrimary / n).toBeGreaterThan(0.2);
+  }, 120_000);
+
+  it("keeps step intermediate zeros near 2%", () => {
+    let steps = 0;
+    let zeros = 0;
+    for (let i = 0; i < 400; i += 1) {
+      const q = generateQuestion({
+        mode: "mixed",
+        difficulty: "medium",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      for (const spec of q.costTemplates ?? []) {
+        steps += 1;
+        if (isZeroStepResult(resultForTemplate(spec))) zeros += 1;
+      }
+    }
+    expect(steps).toBeGreaterThan(500);
+    const ratio = zeros / steps;
+    expect(ratio).toBeGreaterThanOrEqual(0);
+    expect(ratio).toBeLessThanOrEqual(0.04);
+  }, 120_000);
+
+  it("keeps specialty theme step ratio near 70% for fractions mode", () => {
+    let theme = 0;
+    let total = 0;
+    for (let i = 0; i < 400; i += 1) {
+      const q = generateQuestion({
+        mode: "fractions",
+        difficulty: "medium",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      for (const spec of q.costTemplates ?? []) {
+        total += 1;
+        const kind = spec.kind;
+        const isTheme =
+          kind.startsWith("fraction") ||
+          kind.startsWith("decimal") ||
+          kind.includes("decimal-fraction");
+        if (isTheme) theme += 1;
+      }
+    }
+    const ratio = theme / total;
+    expect(ratio).toBeGreaterThanOrEqual(0.6);
+    expect(ratio).toBeLessThanOrEqual(0.95);
+  }, 120_000);
 });

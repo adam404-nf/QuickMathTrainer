@@ -7,7 +7,12 @@ import {
   matchesMentalCostBucket,
 } from "../mentalCost";
 import { decideZeroStep, isZeroStepResult } from "../nonZeroStep";
-import { isCategoryAllowed, templateWeight } from "../selectionPolicy";
+import {
+  allowsDecimalPick,
+  isCategoryAllowed,
+  isDecimalTemplateCategory,
+  templateWeight,
+} from "../selectionPolicy";
 import { filterTemplates } from "../templates";
 import type { QuestionTemplateDescriptor } from "../templates";
 import type { GenerateQuestionInput, Question } from "../types";
@@ -80,9 +85,18 @@ export function generateFromTemplates(
   }
 
   const bucket = input.targetMentalCostBucket;
+  const recentDecimalRatio = input.context.recentDecimalRatio ?? 0;
 
   for (let attempt = 0; attempt < MAX_TEMPLATE_ATTEMPTS; attempt += 1) {
-    const template = pickWeighted(allowed, (t) => templateWeight(input, t));
+    const template = pickWeighted(allowed, (t) => {
+      if (
+        isDecimalTemplateCategory(t.category) &&
+        !allowsDecimalPick(input, recentDecimalRatio)
+      ) {
+        return 0;
+      }
+      return templateWeight(input, t);
+    });
 
     for (let reroll = 0; reroll < REROLLS_PER_TEMPLATE; reroll += 1) {
       let question = template.generate({

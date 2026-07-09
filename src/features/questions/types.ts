@@ -52,6 +52,8 @@ export interface QuestionContext {
   typeCounts?: Partial<Record<QuestionType, number>>;
   /** 本次練習總題數，用於計算每題型上限。 */
   questionLimit?: number;
+  /** 近期主模板為 decimal 的比例，供 allowsDecimalPick 小數上限約束。 */
+  recentDecimalRatio?: number;
 }
 
 export interface GenerateQuestionInput {
