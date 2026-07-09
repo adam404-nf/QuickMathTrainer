@@ -178,6 +178,7 @@ features/
 | 檔案 | 功能 |
 |------|------|
 | `types.ts` | 定義 `Question`（題目長什麼樣）、`QuestionType`（四則/分數/冪次）、難度、心算成本（1–11）等 |
+| `selectionPolicy.ts` | 出題模板選擇權重與約束的唯一來源（小數上限、難模板比例、主題聚焦、硬排除） |
 | `calculationTemplates.ts` | 各計算模板的 baseCost 規則與 `calculateMentalCost()` |
 | `mentalCost.ts` | difficulty 加權選題分佈（bucket） |
 | `templates.ts` | 題目模板庫：例如「平方差」「分數通分」等，並拆成 calculation templates 計算 cost |

@@ -1,7 +1,7 @@
 # 出題模板選擇策略（selectionPolicy）設計規格
 
 日期：2026-07-10  
-狀態：已核准設計，待實作計畫  
+狀態：已核准設計；實作計畫見 `docs/superpowers/plans/2026-07-10-question-template-selection-policy.md`  
 範圍：`src/features/questions/` 出題權重與模板選擇
 
 ---
@@ -330,3 +330,4 @@
 - 先加 metadata 與 policy 模組及單測，再接 generators／append／registry，最後跑 Monte Carlo。
 - 對齊現有 `Difficulty` 與 `PracticeMode` 名稱，避免文件與程式列舉不一致。
 - 變更集應聚焦本規格；勿夾帶無關 WIP。
+- 實作計畫：`docs/superpowers/plans/2026-07-10-question-template-selection-policy.md`
