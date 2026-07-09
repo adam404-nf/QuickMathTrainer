@@ -39,6 +39,9 @@ export interface Question {
   /** 計算此題 mentalCost 所用的各步 spec，用於 cost 檢查面板顯示計算過程。 */
   costTemplates?: CalculationTemplateSpec[];
   technique: QuestionTechnique;
+  templateId?: string;
+  /** 主模板分類；由 QuestionTemplateDescriptor.generate 寫入，供 policy／Monte Carlo 使用 */
+  templateCategory?: "integer" | "fraction" | "decimal" | "power" | "conversion" | "mixed-decimal-fraction";
 }
 
 export interface QuestionContext {

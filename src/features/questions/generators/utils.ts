@@ -6,7 +6,7 @@ import {
   matchesMentalCostBucket,
 } from "../mentalCost";
 import { filterTemplates } from "../templates";
-import type { QuestionTemplate } from "../templates";
+import type { QuestionTemplateDescriptor } from "../templates";
 import type { GenerateQuestionInput, Question } from "../types";
 import { chooseQuestionKind, pickOne } from "../utils";
 import { appendCostStep, MAX_APPEND_STEPS } from "./appendStep";
@@ -59,7 +59,7 @@ function finalizeQuestion(question: Question, input: GenerateQuestionInput): Que
 }
 
 export function generateFromTemplates(
-  templates: readonly QuestionTemplate[],
+  templates: readonly QuestionTemplateDescriptor[],
   input: GenerateQuestionInput,
 ): Question | undefined {
   const useSpecialtyTags = input.mode === "weakness-focused";
@@ -76,7 +76,7 @@ export function generateFromTemplates(
     const template = pickOne(pool);
 
     for (let reroll = 0; reroll < REROLLS_PER_TEMPLATE; reroll += 1) {
-      let question = template({
+      let question = template.generate({
         difficulty: input.difficulty,
         kind: chooseQuestionKind(),
       });

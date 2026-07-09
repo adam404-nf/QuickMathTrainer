@@ -41,13 +41,45 @@ import {
   symbolicAbsTechnique,
 } from "./techniques";
 import { createQuestionId, formatDecimal, normalizeAnswer, parseNumericAnswer, pickOne, randomInt, shuffle } from "./utils";
+import type { OperationKind, TemplateCategory } from "./selectionPolicy";
 
 export interface QuestionTemplateInput {
   difficulty: Difficulty;
   kind: QuestionKind;
 }
 
-export type QuestionTemplate = (input: QuestionTemplateInput) => Question;
+export type QuestionTemplateFn = (input: QuestionTemplateInput) => Question;
+
+export interface QuestionTemplateDescriptor {
+  id: string;
+  category: TemplateCategory;
+  /** 同題同類可控重複用的運算族鍵（細於六大分類） */
+  operationKind: OperationKind;
+  generate: QuestionTemplateFn;
+}
+
+export type QuestionTemplate = QuestionTemplateDescriptor;
+
+function describeTemplate(
+  id: string,
+  category: TemplateCategory,
+  operationKind: OperationKind,
+  generate: QuestionTemplateFn,
+): QuestionTemplateDescriptor {
+  return {
+    id,
+    category,
+    operationKind,
+    generate: (input) => {
+      const question = generate(input);
+      return { ...question, templateId: id, templateCategory: category };
+    },
+  };
+}
+
+export function getTemplateCategory(template: QuestionTemplateDescriptor): TemplateCategory {
+  return template.category;
+}
 
 function inferAnswerFormat(answer: string, explicit?: Question["answerFormat"]): Question["answerFormat"] | undefined {
   if (explicit) {
@@ -219,7 +251,7 @@ function fractionBinaryQuestion(
   });
 }
 
-function compositeFractionTemplate(stepCount: 2 | 3): QuestionTemplate {
+function compositeFractionTemplate(stepCount: 2 | 3): QuestionTemplateFn {
   return ({ difficulty, kind }) => {
     const built = buildFractionComposite(difficulty, stepCount);
     if (!built) {
@@ -240,7 +272,7 @@ function compositeFractionTemplate(stepCount: 2 | 3): QuestionTemplate {
   };
 }
 
-function fractionAbsTemplate(withOuterOp: boolean): QuestionTemplate {
+function fractionAbsTemplate(withOuterOp: boolean): QuestionTemplateFn {
   return ({ difficulty, kind }) => {
     const built = buildFractionAbsComposite(difficulty, withOuterOp);
     if (!built) {
@@ -261,8 +293,8 @@ function fractionAbsTemplate(withOuterOp: boolean): QuestionTemplate {
   };
 }
 
-export const arithmeticTemplates: readonly QuestionTemplate[] = [
-  ({ difficulty, kind }) => {
+export const arithmeticTemplates: readonly QuestionTemplateDescriptor[] = [
+  describeTemplate("integer-multiply", "integer", "integer-multiply", ({ difficulty, kind }) => {
     const base = difficulty === "easy" ? randomInt(11, 19) : randomInt(21, 49);
     const partner = difficulty === "hard" ? randomInt(12, 19) : randomInt(2, 9);
     const answer = base * partner;
@@ -278,8 +310,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + partner, answer - partner, answer + 10, answer - 10].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("integer-add", "integer", "integer-add", ({ difficulty, kind }) => {
     const left = randomInt(12, difficulty === "hard" ? 99 : 49);
     const right = randomInt(11, difficulty === "easy" ? 30 : 80);
     const answer = left + right;
@@ -295,8 +327,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 1, answer - 1, answer + 10, answer - 10].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("integer-divide", "integer", "integer-divide", ({ difficulty, kind }) => {
     const answer = randomInt(8, difficulty === "hard" ? 36 : 24);
     const divisor = randomInt(2, difficulty === "easy" ? 9 : 12);
     const dividend = answer * divisor;
@@ -312,8 +344,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 1, answer - 1, answer + divisor, answer - divisor].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("integer-parentheses-multiply", "integer", "integer-parentheses-multiply", ({ difficulty, kind }) => {
     const a = randomInt(2, difficulty === "hard" ? 18 : 12);
     const b = randomInt(2, difficulty === "hard" ? 15 : 9);
     const c = randomInt(2, difficulty === "easy" ? 6 : 9);
@@ -333,8 +365,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [a + b + c, a * b * c, answer + c, answer - c].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("integer-multiply-then-add", "integer", "integer-multiply-then-add", ({ difficulty, kind }) => {
     const a = randomInt(3, difficulty === "hard" ? 12 : 9);
     const b = randomInt(2, difficulty === "hard" ? 9 : 7);
     const c = randomInt(5, difficulty === "easy" ? 20 : 40);
@@ -354,8 +386,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [a * (b + c), answer + 1, answer - 1, a + b + c].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("difference-of-squares", "integer", "difference-of-squares", ({ difficulty, kind }) => {
     const a = randomInt(4, difficulty === "hard" ? 14 : 11);
     const b = randomInt(2, difficulty === "hard" ? 10 : 7);
     const answer = a * a - b * b;
@@ -375,8 +407,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [(a - b) ** 2, a + b, answer + b, answer - b].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("sum-diff-product", "integer", "sum-diff-product", ({ difficulty, kind }) => {
     const a = randomInt(4, difficulty === "hard" ? 13 : 10);
     const b = randomInt(2, difficulty === "hard" ? 9 : 6);
     const answer = (a + b) * (a - b);
@@ -396,8 +428,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [a * a + b * b, a * a - b * b + 1, (a + b) + (a - b), answer + b].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("integer-abs-composite", "integer", "integer-abs-composite", ({ difficulty, kind }) => {
     const a = -randomInt(3, difficulty === "hard" ? 15 : 10);
     const b = randomInt(2, 9);
     const c = randomInt(2, difficulty === "hard" ? 9 : 6);
@@ -419,8 +451,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 1, answer - 1, Math.abs(a) + b + c, b * c].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("double-abs", "integer", "double-abs", ({ difficulty, kind }) => {
     const a = -randomInt(4, 12);
     const b = -randomInt(2, 8);
     const answer = Math.abs(a) - Math.abs(b);
@@ -440,8 +472,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 1, answer - 1, Math.abs(a) + Math.abs(b), Math.abs(a)].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("integer-subtract", "integer", "integer-subtract", ({ difficulty, kind }) => {
     const left = randomInt(20, difficulty === "hard" ? 99 : 49);
     const right = randomInt(1, left - 1);
     const answer = left - right;
@@ -458,8 +490,8 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 1, answer - 1, answer + right, left + right].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("integer-subtract-chain", "integer", "integer-subtract-chain", ({ difficulty, kind }) => {
     const a = randomInt(30, difficulty === "hard" ? 99 : 60);
     const b = randomInt(5, 20);
     const c = randomInt(2, Math.min(15, b));
@@ -480,7 +512,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 1, answer - 1, a - b, a - c].map(String),
     });
-  },
+  }),
 ];
 
 /**
@@ -488,7 +520,7 @@ export const arithmeticTemplates: readonly QuestionTemplate[] = [
  * （見 costModel.calculateQuestionCost），讓 powers 題型也能達到與其他題型相同的
  * 統一難度 cost range。
  */
-const squarePlusIntTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+const squarePlusIntTemplate = describeTemplate("square-plus-int", "power", "square-plus-int", ({ difficulty, kind }) => {
   const range = {
     easy: { aMin: 6, aMax: 10, cMin: 4, cMax: 45 },
     medium: { aMin: 11, aMax: 15, cMin: 10, cMax: 60 },
@@ -520,9 +552,9 @@ const squarePlusIntTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 1, answer - 1, answer + c, square].map(String),
   });
-};
+});
 
-const twoSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+const twoSquaresTemplate = describeTemplate("two-squares", "power", "two-squares", ({ difficulty, kind }) => {
   const range = {
     easy: { min: 6, max: 10 },
     medium: { min: 8, max: 12 },
@@ -561,13 +593,13 @@ const twoSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 1, answer - 1, squareA, squareB].map(String),
   });
-};
+});
 
 /**
  * 三步平方複合題 a² + b² − c²：三個 chunk，帶來 (3-1)×1 的協調成本，
  * 適合 hard 15–30 的上緣。
  */
-const threeSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+const threeSquaresTemplate = describeTemplate("three-squares", "power", "three-squares", ({ difficulty, kind }) => {
   const range = {
     easy: { min: 5, max: 9 },
     medium: { min: 7, max: 11 },
@@ -602,13 +634,13 @@ const threeSquaresTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 1, answer - 1, squareA + squareB, squareC].map(String),
   });
-};
+});
 
 /**
  * 立方複合題：easy/medium 用「a³ ± c」，hard 用「a³ ± b³」（多一個 chunk），
  * 讓 ³ 記憶提取題也能落在統一 range。
  */
-const cubeComposite: QuestionTemplate = ({ difficulty, kind }) => {
+const cubeComposite = describeTemplate("cube-composite", "power", "cube-composite", ({ difficulty, kind }) => {
   const op = pickOne(["+", "−"] as const);
 
   if (difficulty === "hard") {
@@ -667,12 +699,12 @@ const cubeComposite: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 1, answer - 1, cube, answer + c].map(String),
   });
-};
+});
 
 /**
  * 四次方複合題 a⁴ ± c：以較大的四次方 base 配合加減步驟達到統一 range。
  */
-const fourthComposite: QuestionTemplate = ({ difficulty, kind }) => {
+const fourthComposite = describeTemplate("fourth-composite", "power", "fourth-composite", ({ difficulty, kind }) => {
   const op = pickOne(["+", "−"] as const);
   const range = {
     easy: { aMin: 2, aMax: 4, cMin: 5, cMax: 40 },
@@ -701,12 +733,12 @@ const fourthComposite: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 1, answer - 1, power, answer + c].map(String),
   });
-};
+});
 
 /**
  * 立方根複合題：easy/medium 用「∛rad + c」，hard 用「∛rad + c + d」（多一步）。
  */
-const cubeRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
+const cubeRootComposite = describeTemplate("cube-root-composite", "power", "cube-root-composite", ({ difficulty, kind }) => {
   const root = randomInt(3, 8);
   const radicand = root ** 3;
 
@@ -751,12 +783,12 @@ const cubeRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 1, answer - 1, root, c].map(String),
   });
-};
+});
 
 /**
  * 四次方根複合題：easy/medium 用「⁴√rad + c」，hard 用「⁴√rad + c + d」。
  */
-const fourthRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
+const fourthRootComposite = describeTemplate("fourth-root-composite", "power", "fourth-root-composite", ({ difficulty, kind }) => {
   const root = randomInt(2, 5);
   const radicand = root ** 4;
 
@@ -801,9 +833,9 @@ const fourthRootComposite: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 1, answer - 1, root, c].map(String),
   });
-};
+});
 
-export const powersCompositeTemplates: readonly QuestionTemplate[] = [
+export const powersCompositeTemplates: readonly QuestionTemplateDescriptor[] = [
   squarePlusIntTemplate,
   twoSquaresTemplate,
   threeSquaresTemplate,
@@ -813,8 +845,8 @@ export const powersCompositeTemplates: readonly QuestionTemplate[] = [
   fourthRootComposite,
 ];
 
-export const powersTemplates: readonly QuestionTemplate[] = [
-  ({ difficulty, kind }) => {
+export const powersTemplates: readonly QuestionTemplateDescriptor[] = [
+  describeTemplate("square", "power", "square", ({ difficulty, kind }) => {
     const value = randomInt(6, difficulty === "hard" ? 25 : 15);
     const answer = value * value;
 
@@ -829,8 +861,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + value, answer - value, answer + 10, answer - 10].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("square-root", "power", "square-root", ({ difficulty, kind }) => {
     const root = randomInt(8, difficulty === "hard" ? 24 : 16);
     const radicand = root * root;
 
@@ -845,8 +877,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [root + 1, root - 1, root + 2, root - 2].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("cube", "power", "cube", ({ difficulty, kind }) => {
     const base = randomInt(2, difficulty === "hard" ? 6 : 5);
     const answer = base ** 3;
 
@@ -861,8 +893,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + base, answer - base, base ** 2, answer + 3].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("fourth-power", "power", "fourth-power", ({ difficulty, kind }) => {
     const base = randomInt(2, difficulty === "hard" ? 5 : 4);
     const answer = base ** 4;
 
@@ -877,8 +909,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + base, answer - base, base ** 3, answer + 4].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("cube-root", "power", "cube-root", ({ difficulty, kind }) => {
     const root = randomInt(2, difficulty === "hard" ? 6 : 5);
     const radicand = root ** 3;
 
@@ -893,8 +925,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [root + 1, root - 1, root + 2, root - 2].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("fourth-root", "power", "fourth-root", ({ difficulty, kind }) => {
     const root = randomInt(2, difficulty === "hard" ? 4 : 4);
     const radicand = root ** 4;
 
@@ -909,8 +941,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [root + 1, root - 1, root + 2, root - 2].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("sqrt-abs", "power", "sqrt-abs", ({ difficulty, kind }) => {
     const value = randomInt(3, difficulty === "hard" ? 15 : 11);
     const signed = pickOne([-value, value]);
     const answer = Math.abs(signed);
@@ -927,8 +959,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [signed, -answer, answer + 1, answer - 1].map(String),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("symbolic-abs", "power", "symbolic-abs", ({ difficulty, kind }) => {
     const variable = pickOne(["a", "x", "n"] as const);
 
     return makeQuestion({
@@ -942,8 +974,8 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [variable, `-${variable}`, `${variable}²`, `±${variable}`],
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("abs-square", "power", "abs-square", ({ difficulty, kind }) => {
     const a = -randomInt(2, difficulty === "hard" ? 9 : 7);
     const answer = Math.abs(a) ** 2;
 
@@ -958,7 +990,7 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 1, answer - 1, Math.abs(a), a * a].map(String),
     });
-  },
+  }),
   ...powersCompositeTemplates,
 ];
 
@@ -966,7 +998,11 @@ export const powersTemplates: readonly QuestionTemplate[] = [
  * 小數複合題 (a + b) × m：兩步小數運算配合協調成本，讓小數題也能落在統一 range，
  * 使 weakness-focused 的 decimals 練習不必因無法達標而退回整數題。
  */
-const decimalCompositeTemplate: QuestionTemplate = ({ difficulty, kind }) => {
+const decimalCompositeTemplate = describeTemplate(
+  "decimal-composite",
+  "decimal",
+  "decimal-composite",
+  ({ difficulty, kind }) => {
   const mRange = {
     easy: { min: 3, max: 9 },
     medium: { min: 11, max: 29 },
@@ -999,11 +1035,11 @@ const decimalCompositeTemplate: QuestionTemplate = ({ difficulty, kind }) => {
     kind,
     distractors: [answer + 0.1, answer - 0.1, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
   });
-};
+});
 
-export const fractionTemplates: readonly QuestionTemplate[] = [
+export const fractionTemplates: readonly QuestionTemplateDescriptor[] = [
   decimalCompositeTemplate,
-  ({ difficulty, kind }) => {
+  describeTemplate("fraction-same-denom-add", "fraction", "fraction-same-denom-add", ({ difficulty, kind }) => {
     const denominator = pickOne(difficulty === "hard" ? [6, 8, 10, 12] : [2, 3, 4, 5]);
     const leftNumerator = randomInt(1, denominator - 1);
     const rightNumerator = randomInt(1, denominator - leftNumerator);
@@ -1028,16 +1064,24 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
         `${answerNumerator}/${denominator * 2}`,
       ],
     });
-  },
-  ({ difficulty, kind }) => unlikeDenominatorQuestion(difficulty, kind, "+", "addition"),
-  ({ difficulty, kind }) => unlikeDenominatorQuestion(difficulty, kind, "−", "subtraction"),
-  ({ difficulty, kind }) => fractionBinaryQuestion(difficulty, kind, "×"),
-  ({ difficulty, kind }) => fractionBinaryQuestion(difficulty, kind, "÷"),
-  compositeFractionTemplate(2),
-  compositeFractionTemplate(3),
-  fractionAbsTemplate(false),
-  fractionAbsTemplate(true),
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("fraction-unlike-add", "fraction", "fraction-unlike-add", ({ difficulty, kind }) =>
+    unlikeDenominatorQuestion(difficulty, kind, "+", "addition"),
+  ),
+  describeTemplate("fraction-unlike-sub", "fraction", "fraction-unlike-sub", ({ difficulty, kind }) =>
+    unlikeDenominatorQuestion(difficulty, kind, "−", "subtraction"),
+  ),
+  describeTemplate("fraction-multiply", "fraction", "fraction-multiply", ({ difficulty, kind }) =>
+    fractionBinaryQuestion(difficulty, kind, "×"),
+  ),
+  describeTemplate("fraction-divide", "fraction", "fraction-divide", ({ difficulty, kind }) =>
+    fractionBinaryQuestion(difficulty, kind, "÷"),
+  ),
+  describeTemplate("fraction-composite-2", "fraction", "fraction-composite-2", compositeFractionTemplate(2)),
+  describeTemplate("fraction-composite-3", "fraction", "fraction-composite-3", compositeFractionTemplate(3)),
+  describeTemplate("fraction-abs", "fraction", "fraction-abs", fractionAbsTemplate(false)),
+  describeTemplate("fraction-abs-nested", "fraction", "fraction-abs-nested", fractionAbsTemplate(true)),
+  describeTemplate("conversion-fraction-to-decimal", "conversion", "fraction-to-decimal", ({ difficulty, kind }) => {
     const denominator = pickOne(difficulty === "hard" ? [6, 8, 10, 12] : [4, 5, 8, 10]);
     const numerator = randomInt(1, denominator - 1);
     const value = numerator / denominator;
@@ -1056,8 +1100,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [value + 0.1, value - 0.1, value + 0.01, Math.max(0, value - 0.01)].map(formatDecimal),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("decimal-add", "decimal", "decimal-add", ({ difficulty, kind }) => {
     const left = pickOne([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]);
     const right = pickOne([0.1, 0.2, 0.3, 0.4, 0.5]);
     const answer = left + right;
@@ -1075,8 +1119,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 0.1, answer - 0.1, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("decimal-multiply", "decimal", "decimal-multiply", ({ difficulty, kind }) => {
     const left = pickOne([0.2, 0.3, 0.4, 0.5, 0.6, 0.8]);
     const right = randomInt(2, difficulty === "hard" ? 9 : 6);
     const answer = left * right;
@@ -1094,8 +1138,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 0.2, answer - 0.2, answer + 1, Math.max(0, answer - 1)].map(formatDecimal),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("decimal-subtract", "decimal", "decimal-subtract", ({ difficulty, kind }) => {
     const whole = randomInt(1, difficulty === "hard" ? 9 : 6);
     const fraction = pickOne([0.1, 0.2, 0.3, 0.4, 0.5]);
     const answer = whole - fraction;
@@ -1113,8 +1157,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 0.1, answer - 0.1, whole + fraction, Math.max(0, answer - 1)].map(formatDecimal),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("mixed-decimal-fraction", "mixed-decimal-fraction", "decimal-fraction-mixed", ({ difficulty, kind }) => {
     const fraction = randomProperFraction(difficulty);
     const decimal = pickOne([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8]);
     const op = pickOne(["+", "−", "×", "÷"] as const);
@@ -1173,8 +1217,8 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [value + 0.1, value - 0.1, value + 1, Math.max(0, value - 1)].map(formatDecimal),
     });
-  },
-  ({ difficulty, kind }) => {
+  }),
+  describeTemplate("decimal-square", "decimal", "decimal-square", ({ difficulty, kind }) => {
     const decimal = pickOne([0.2, 0.3, 0.4, 0.5, 0.6, 0.8]);
     const answer = decimal * decimal;
 
@@ -1193,17 +1237,17 @@ export const fractionTemplates: readonly QuestionTemplate[] = [
       kind,
       distractors: [answer + 0.01, answer - 0.01, answer + 0.1, Math.max(0, answer - 0.1)].map(formatDecimal),
     });
-  },
+  }),
 ];
 
-export const allTemplates: readonly QuestionTemplate[] = [
+export const allTemplates: readonly QuestionTemplateDescriptor[] = [
   ...arithmeticTemplates,
   ...powersTemplates,
   ...fractionTemplates,
 ];
 
 export function templateMatchesTags(
-  template: QuestionTemplate,
+  template: QuestionTemplateDescriptor,
   tags: readonly string[],
   useSpecialtyTags = false,
 ): boolean {
@@ -1211,7 +1255,7 @@ export function templateMatchesTags(
     return true;
   }
 
-  const sample = template({ difficulty: "medium", kind: "fill-in" });
+  const sample = template.generate({ difficulty: "medium", kind: "fill-in" });
   const matchTags =
     useSpecialtyTags && sample.specialtyTags
       ? sample.specialtyTags
@@ -1222,10 +1266,10 @@ export function templateMatchesTags(
 }
 
 export function filterTemplates(
-  templates: readonly QuestionTemplate[],
+  templates: readonly QuestionTemplateDescriptor[],
   tags?: readonly string[],
   options?: { useSpecialtyTags?: boolean },
-): QuestionTemplate[] {
+): QuestionTemplateDescriptor[] {
   if (!tags || tags.length === 0) {
     return [...templates];
   }
@@ -1241,7 +1285,7 @@ export function getQuestionTypesForTags(tags: readonly string[]): QuestionType[]
       continue;
     }
 
-    const sample = template({ difficulty: "medium", kind: "fill-in" });
+    const sample = template.generate({ difficulty: "medium", kind: "fill-in" });
     types.add(sample.type);
   }
 

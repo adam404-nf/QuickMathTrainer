@@ -2,8 +2,69 @@ import { describe, expect, it } from "vitest";
 import { resolveAnswerPath } from "./answerPath";
 import { isSimplestFractionString } from "./fractionMath";
 import { costRangeForDifficulty } from "./mentalCost";
-import { allTemplates } from "./templates";
+import {
+  allTemplates,
+  arithmeticTemplates,
+  fractionTemplates,
+  powersTemplates,
+} from "./templates";
+import {
+  isDecimalTemplateCategory,
+  isHardTemplateCategory,
+  type TemplateCategory,
+} from "./selectionPolicy";
 import type { Difficulty, Question } from "./types";
+
+function categoriesOf(templates: readonly { category: TemplateCategory }[]): TemplateCategory[] {
+  return templates.map((t) => t.category);
+}
+
+describe("template category metadata", () => {
+  it("assigns exactly one category to every template", () => {
+    for (const template of allTemplates) {
+      expect(template.id).toBeTruthy();
+      expect(template.category).toBeTruthy();
+      expect(template.operationKind).toBeTruthy();
+      expect(typeof template.generate).toBe("function");
+    }
+  });
+
+  it("marks pure decimal templates as decimal only", () => {
+    const decimalIds = fractionTemplates
+      .filter((t) => t.category === "decimal")
+      .map((t) => t.id);
+    expect(decimalIds.length).toBeGreaterThan(0);
+    // conversion / mixed 不得標成 decimal
+    for (const t of fractionTemplates) {
+      if (t.id.includes("conversion") || t.id.includes("mixed-decimal-fraction")) {
+        expect(t.category).not.toBe("decimal");
+      }
+    }
+  });
+
+  it("treats conversion and mixed-decimal-fraction as hard but not decimal", () => {
+    const conversion = fractionTemplates.find((t) => t.category === "conversion");
+    const mixed = fractionTemplates.find((t) => t.category === "mixed-decimal-fraction");
+    expect(conversion).toBeDefined();
+    expect(mixed).toBeDefined();
+    expect(isHardTemplateCategory(conversion!.category)).toBe(true);
+    expect(isHardTemplateCategory(mixed!.category)).toBe(true);
+    expect(isDecimalTemplateCategory(conversion!.category)).toBe(false);
+    expect(isDecimalTemplateCategory(mixed!.category)).toBe(false);
+  });
+
+  it("keeps arithmetic specialty templates as integer (no power/fraction/decimal)", () => {
+    for (const c of categoriesOf(arithmeticTemplates)) {
+      expect(c).toBe("integer");
+    }
+  });
+
+  it("keeps powers templates as power", () => {
+    for (const c of categoriesOf(powersTemplates)) {
+      expect(c).toBe("power");
+    }
+  });
+});
 
 describe("multiple-choice options", () => {
   it("always includes the correct answer across all templates", () => {
@@ -12,7 +73,7 @@ describe("multiple-choice options", () => {
     for (const template of allTemplates) {
       for (const difficulty of difficulties) {
         for (let index = 0; index < 5; index += 1) {
-          const question = template({ difficulty, kind: "multiple-choice" });
+          const question = template.generate({ difficulty, kind: "multiple-choice" });
 
           expect(question.options).toHaveLength(4);
           expect(new Set(question.options).size).toBe(4);
@@ -25,7 +86,7 @@ describe("multiple-choice options", () => {
   it("does not emit long floating-point tails in distractors", () => {
     for (const template of allTemplates) {
       for (let index = 0; index < 10; index += 1) {
-        const question = template({ difficulty: "medium", kind: "multiple-choice" });
+        const question = template.generate({ difficulty: "medium", kind: "multiple-choice" });
         for (const option of question.options ?? []) {
           expect(option).not.toMatch(/\d+\.\d{5,}/);
         }
@@ -44,7 +105,7 @@ describe("resolveAnswerPath", () => {
         const range = costRangeForDifficulty(difficulty);
 
         for (let index = 0; index < 10; index += 1) {
-          const draft = template({ difficulty, kind: "fill-in" });
+          const draft = template.generate({ difficulty, kind: "fill-in" });
           if (
             !draft.needsAnswerPath ||
             draft.rationalValue === undefined ||

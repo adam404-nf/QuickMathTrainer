@@ -88,6 +88,40 @@ export function themeStepTarget(input: {
   return THEME_STEP_TARGET;
 }
 
+export function isThemeCategory(
+  input: { mode: PracticeMode; targetTags?: readonly string[] },
+  category: TemplateCategory,
+): boolean {
+  if (input.mode === "arithmetic") return category === "integer";
+  if (input.mode === "fractions") {
+    return (
+      category === "fraction" ||
+      category === "decimal" ||
+      category === "conversion" ||
+      category === "mixed-decimal-fraction"
+    );
+  }
+  if (input.mode === "powers") return category === "power";
+  if (input.mode === "weakness-focused") {
+    const tags = input.targetTags ?? [];
+    if (tags.includes("decimals")) return category === "decimal";
+    if (tags.includes("fractions")) {
+      return category === "fraction" || category === "conversion" || category === "mixed-decimal-fraction";
+    }
+    // 其他 tag：以 specialty 過濾為主；分類層給寬鬆 true 讓 operation/tag 決定
+    return true;
+  }
+  return false;
+}
+
+export function isThemeOperationKind(
+  input: { mode: PracticeMode; targetTags?: readonly string[] },
+  _operationKind: OperationKind,
+  category: TemplateCategory,
+): boolean {
+  return isThemeCategory(input, category);
+}
+
 export type RelaxableConstraint = "decimal-cap" | "theme-ratio" | "hard-template-ratio";
 
 export function relaxationOrder(): readonly RelaxableConstraint[] {
