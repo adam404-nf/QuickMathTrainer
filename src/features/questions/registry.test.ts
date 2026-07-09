@@ -7,6 +7,7 @@ import {
   maxQuestionsPerType,
 } from "./mentalCost";
 import { availableQuestionTypes, generateQuestion, questionMatchesTargets } from "./registry";
+import { questionTypeWeight } from "./selectionPolicy";
 import type { QuestionType } from "./types";
 
 describe("question registry", () => {
@@ -280,4 +281,30 @@ describe("question registry", () => {
       expect(found).toBe(true);
     }
   }, 30_000);
+});
+
+describe("registry selectionPolicy integration", () => {
+  it("weights mixed extreme toward fractions/powers over arithmetic", () => {
+    const input = {
+      mode: "mixed" as const,
+      difficulty: "extreme" as const,
+      context: { recentQuestionIds: [], seenQuestionIds: new Set<string>() },
+    };
+    const a = questionTypeWeight(input, "arithmetic");
+    const f = questionTypeWeight(input, "fractions");
+    const p = questionTypeWeight(input, "powers");
+    expect(f + p).toBeGreaterThan(a);
+  });
+
+  it("never returns out-of-range cost even when generation is difficult", () => {
+    const range = costRangeForDifficulty("hard");
+    for (let i = 0; i < 30; i += 1) {
+      const q = generateQuestion({
+        mode: "mixed",
+        difficulty: "hard",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      expect(matchesMentalCostBucket(q.mentalCost, range)).toBe(true);
+    }
+  });
 });

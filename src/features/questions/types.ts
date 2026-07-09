@@ -1,5 +1,6 @@
 import type { MentalCostBucket } from "./mentalCost";
 import type { CalculationTemplateSpec } from "./calculationTemplates";
+import type { RelaxableConstraint } from "./selectionPolicy";
 
 export type Difficulty = "easy" | "medium" | "hard" | "extreme";
 
@@ -61,6 +62,7 @@ export interface GenerateQuestionInput {
   targetTypes?: QuestionType[];
   selectedQuestionTypes?: QuestionType[];
   targetMentalCostBucket?: MentalCostBucket;
+  relaxedConstraints?: Array<RelaxableConstraint>;
 }
 
 export type QuestionGenerator = (

@@ -1,4 +1,4 @@
-import type { Difficulty, PracticeMode } from "./types";
+import type { Difficulty, GenerateQuestionInput, PracticeMode, QuestionType } from "./types";
 
 export type TemplateCategory =
   | "integer"
@@ -72,6 +72,21 @@ export function decimalCapForContext(input: {
     return 0.1;
   }
   return 0.1;
+}
+
+export function questionTypeWeight(input: GenerateQuestionInput, type: QuestionType): number {
+  if (input.mode !== "mixed" && input.mode !== "weakness-focused") {
+    return type === input.mode ? 1 : 0;
+  }
+  if (input.mode === "weakness-focused") {
+    // 弱點專題題型由 registry 另行篩選；此處均權，詳細權重留待後續
+    return 1;
+  }
+  // mixed：依難度目標比例偏向 fractions/powers
+  const hard = mixedHardTemplateTarget(input.difficulty);
+  if (type === "fractions") return hard * 0.55;
+  if (type === "powers") return hard * 0.45;
+  return 1 - hard;
 }
 
 export function mixedHardTemplateTarget(difficulty: Difficulty): number {
