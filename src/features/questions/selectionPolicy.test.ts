@@ -11,6 +11,7 @@ import {
   isCategoryAllowed,
   isDecimalTemplateCategory,
   isHardTemplateCategory,
+  isThemeCategory,
   mixedHardTemplateTarget,
   neverRelaxCostRange,
   relaxationOrder,
@@ -108,6 +109,84 @@ describe("mode hard exclusions", () => {
     expect(hardExcludedCategories("mixed")).toEqual([]);
     expect(hardExcludedCategories("weakness-focused")).toEqual([]);
     expect(hardExcludedCategories("powers")).toEqual([]);
+  });
+});
+
+const ALL_CATEGORIES: TemplateCategory[] = [
+  "integer",
+  "fraction",
+  "decimal",
+  "power",
+  "conversion",
+  "mixed-decimal-fraction",
+];
+
+describe("isThemeCategory", () => {
+  it("arithmetic treats only integer as theme", () => {
+    const input = { mode: "arithmetic" as const };
+    expect(isThemeCategory(input, "integer")).toBe(true);
+    for (const c of ALL_CATEGORIES.filter((c) => c !== "integer")) {
+      expect(isThemeCategory(input, c)).toBe(false);
+    }
+  });
+
+  it("fractions treats fraction/decimal/conversion/mixed-decimal-fraction as theme", () => {
+    const input = { mode: "fractions" as const };
+    const theme = ["fraction", "decimal", "conversion", "mixed-decimal-fraction"] as const;
+    for (const c of theme) {
+      expect(isThemeCategory(input, c)).toBe(true);
+    }
+    expect(isThemeCategory(input, "integer")).toBe(false);
+    expect(isThemeCategory(input, "power")).toBe(false);
+  });
+
+  it("powers treats only power as theme", () => {
+    const input = { mode: "powers" as const };
+    expect(isThemeCategory(input, "power")).toBe(true);
+    for (const c of ALL_CATEGORIES.filter((c) => c !== "power")) {
+      expect(isThemeCategory(input, c)).toBe(false);
+    }
+  });
+
+  it("mixed treats no category as theme", () => {
+    const input = { mode: "mixed" as const };
+    for (const c of ALL_CATEGORIES) {
+      expect(isThemeCategory(input, c)).toBe(false);
+    }
+  });
+
+  it("weakness-focused decimals treats only decimal as theme", () => {
+    const input = { mode: "weakness-focused" as const, targetTags: ["decimals"] };
+    expect(isThemeCategory(input, "decimal")).toBe(true);
+    for (const c of ALL_CATEGORIES.filter((c) => c !== "decimal")) {
+      expect(isThemeCategory(input, c)).toBe(false);
+    }
+  });
+
+  it("weakness-focused fractions treats fraction/conversion/mixed-decimal-fraction as theme", () => {
+    const input = { mode: "weakness-focused" as const, targetTags: ["fractions"] };
+    const theme = ["fraction", "conversion", "mixed-decimal-fraction"] as const;
+    for (const c of theme) {
+      expect(isThemeCategory(input, c)).toBe(true);
+    }
+    expect(isThemeCategory(input, "integer")).toBe(false);
+    expect(isThemeCategory(input, "decimal")).toBe(false);
+    expect(isThemeCategory(input, "power")).toBe(false);
+  });
+
+  it("weakness-focused power/absolute-value tags return true for all categories", () => {
+    const powerTags = [
+      ["square"],
+      ["cube"],
+      ["square-root"],
+      ["absolute-value"],
+    ] as const;
+    for (const targetTags of powerTags) {
+      const input = { mode: "weakness-focused" as const, targetTags: [...targetTags] };
+      for (const c of ALL_CATEGORIES) {
+        expect(isThemeCategory(input, c)).toBe(true);
+      }
+    }
   });
 });
 
