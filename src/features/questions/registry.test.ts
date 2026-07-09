@@ -231,10 +231,12 @@ describe("question registry", () => {
     }
   }, 120_000);
 
-  it("caps per-type question counts in mixed sessions", () => {
+  it("soft quota mostly deprioritizes over-cap types in mixed sessions", () => {
     const questionLimit = 10;
     const cap = maxQuestionsPerType(questionLimit, availableQuestionTypes.length);
     const typeCounts: Partial<Record<QuestionType, number>> = { fractions: cap };
+
+    let fractionCount = 0;
 
     for (let index = 0; index < 20; index += 1) {
       const question = generateQuestion({
@@ -248,8 +250,13 @@ describe("question registry", () => {
         },
       });
 
-      expect(question.type).not.toBe("fractions");
+      if (question.type === "fractions") {
+        fractionCount += 1;
+      }
     }
+
+    // Soft quota (0.15× penalty): over-cap types remain possible but are mostly avoided
+    expect(fractionCount).toBeLessThanOrEqual(3);
   }, 120_000);
 
   it("can generate absolute-value questions across practice modes", () => {
