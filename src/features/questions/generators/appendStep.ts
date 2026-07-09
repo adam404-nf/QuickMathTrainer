@@ -174,38 +174,26 @@ function isSubtractionFocused(input?: GenerateQuestionInput): boolean {
   return input?.mode === "weakness-focused" && (input.targetTags?.includes("subtraction") ?? false);
 }
 
-function appendIntegerOperation(
+function formatAppendAnswer(value: number): string {
+  return hasTerminatingDecimal(value) ? formatDecimal(value) : String(value);
+}
+
+function integerAppendBuilders(
   question: Question,
   currentValue: number,
   input?: GenerateQuestionInput,
-): Question | undefined {
-  if (!Number.isInteger(currentValue)) {
-    return undefined;
+  options?: { relaxIntegerBase?: boolean },
+): AppendBuilder[] {
+  if (!Number.isFinite(currentValue)) {
+    return [];
+  }
+  if (!options?.relaxIntegerBase && !Number.isInteger(currentValue)) {
+    return [];
   }
 
   const baseExpr = stripPromptSuffix(question.prompt);
   const existing = question.costTemplates ?? [];
   const { min, max } = operandRange(question.difficulty);
-
-  if (isSubtractionFocused(input)) {
-    if (!canAppendOperationKind(existing, "integer-subtract")) {
-      return undefined;
-    }
-    const b = randomInt(min, Math.min(max, currentValue - 1));
-    if (b < min || currentValue - b <= 0) {
-      return undefined;
-    }
-    const answer = currentValue - b;
-    const template: CalculationTemplateSpec = { kind: "integer-subtract", a: currentValue, b };
-    return rebuildQuestion(question, {
-      prompt: `${baseExpr} − ${b} = ?`,
-      answer: String(answer),
-      costTemplates: [...existing, template],
-      tags: ["subtraction"],
-      techniqueStep: `${currentValue} − ${b} = ${answer}`,
-    });
-  }
-
   const builders: AppendBuilder[] = [
     {
       category: "integer",
@@ -216,33 +204,43 @@ function appendIntegerOperation(
         const template: CalculationTemplateSpec = { kind: "integer-add", a: currentValue, b };
         return rebuildQuestion(question, {
           prompt: `${baseExpr} + ${b} = ?`,
-          answer: String(answer),
+          answer: formatAppendAnswer(answer),
           costTemplates: [...existing, template],
           tags: ["addition"],
           techniqueStep: `${currentValue} + ${b} = ${answer}`,
         });
       },
     },
-    {
+  ];
+
+  if (currentValue > min) {
+    builders.push({
       category: "integer",
       operationKind: "integer-subtract",
       build: () => {
-        const b = randomInt(min, Math.min(max, currentValue - 1));
-        if (b < min || currentValue - b <= 0) {
+        const upper = Math.min(max, Math.floor(currentValue - 1));
+        if (upper < min) {
+          return undefined;
+        }
+        const b = randomInt(min, upper);
+        if (currentValue - b <= 0) {
           return undefined;
         }
         const answer = currentValue - b;
         const template: CalculationTemplateSpec = { kind: "integer-subtract", a: currentValue, b };
         return rebuildQuestion(question, {
           prompt: `${baseExpr} − ${b} = ?`,
-          answer: String(answer),
+          answer: formatAppendAnswer(answer),
           costTemplates: [...existing, template],
           tags: ["subtraction"],
           techniqueStep: `${currentValue} − ${b} = ${answer}`,
         });
       },
-    },
-    {
+    });
+  }
+
+  if (Number.isInteger(currentValue)) {
+    builders.push({
       category: "integer",
       operationKind: "integer-multiply",
       build: () => {
@@ -251,14 +249,14 @@ function appendIntegerOperation(
         const template: CalculationTemplateSpec = { kind: "integer-multiply", a: currentValue, b };
         return rebuildQuestion(question, {
           prompt: `(${baseExpr}) × ${b} = ?`,
-          answer: String(answer),
+          answer: formatAppendAnswer(answer),
           costTemplates: [...existing, template],
           tags: ["multiplication", "order-of-operations"],
           techniqueStep: `${currentValue} × ${b} = ${answer}`,
         });
       },
-    },
-    {
+    });
+    builders.push({
       category: "integer",
       operationKind: "integer-divide",
       build: () => {
@@ -284,26 +282,58 @@ function appendIntegerOperation(
           techniqueStep: `${currentValue} ÷ ${divisor} = ${answer}`,
         });
       },
-    },
-  ];
+    });
+  }
 
-  return pickAppendCandidate(question, builders, input);
+  return builders;
 }
 
-function appendDecimalOperation(
+function appendIntegerOperation(
   question: Question,
   currentValue: number,
   input?: GenerateQuestionInput,
 ): Question | undefined {
-  if (!hasTerminatingDecimal(currentValue)) {
+  if (!Number.isInteger(currentValue)) {
     return undefined;
+  }
+
+  const existing = question.costTemplates ?? [];
+
+  if (isSubtractionFocused(input)) {
+    if (!canAppendOperationKind(existing, "integer-subtract")) {
+      return undefined;
+    }
+    const baseExpr = stripPromptSuffix(question.prompt);
+    const { min, max } = operandRange(question.difficulty);
+    const b = randomInt(min, Math.min(max, currentValue - 1));
+    if (b < min || currentValue - b <= 0) {
+      return undefined;
+    }
+    const answer = currentValue - b;
+    const template: CalculationTemplateSpec = { kind: "integer-subtract", a: currentValue, b };
+    return rebuildQuestion(question, {
+      prompt: `${baseExpr} − ${b} = ?`,
+      answer: String(answer),
+      costTemplates: [...existing, template],
+      tags: ["subtraction"],
+      techniqueStep: `${currentValue} − ${b} = ${answer}`,
+    });
+  }
+
+  const builders = integerAppendBuilders(question, currentValue, input);
+  return pickAppendCandidate(question, builders, input);
+}
+
+function decimalAppendBuilders(question: Question, currentValue: number): AppendBuilder[] {
+  if (!hasTerminatingDecimal(currentValue)) {
+    return [];
   }
 
   const baseExpr = stripPromptSuffix(question.prompt);
   const existing = question.costTemplates ?? [];
   const { max } = operandRange(question.difficulty);
 
-  const builders: AppendBuilder[] = [
+  return [
     {
       category: "decimal",
       operationKind: "decimal-add",
@@ -370,19 +400,25 @@ function appendDecimalOperation(
       },
     },
   ];
+}
 
+function appendDecimalOperation(
+  question: Question,
+  currentValue: number,
+  input?: GenerateQuestionInput,
+): Question | undefined {
+  const builders = decimalAppendBuilders(question, currentValue);
+  if (builders.length === 0) {
+    return undefined;
+  }
   return pickAppendCandidate(question, builders, input);
 }
 
-function appendFractionOperation(
-  question: Question,
-  left: Fraction,
-  input?: GenerateQuestionInput,
-): Question | undefined {
+function fractionAppendBuilders(question: Question, left: Fraction): AppendBuilder[] {
   const baseExpr = stripPromptSuffix(question.prompt);
   const existing = question.costTemplates ?? [];
 
-  const builders: AppendBuilder[] = [
+  return [
     {
       category: "fraction",
       operationKind: "fraction-unlike-denom",
@@ -484,8 +520,30 @@ function appendFractionOperation(
       },
     },
   ];
+}
 
+function appendFractionOperation(
+  question: Question,
+  left: Fraction,
+  input?: GenerateQuestionInput,
+): Question | undefined {
+  const builders = fractionAppendBuilders(question, left);
+  if (builders.length === 0) {
+    return undefined;
+  }
   return pickAppendCandidate(question, builders, input);
+}
+
+function specialtyIntegerAppendBuilders(
+  question: Question,
+  currentValue: number,
+  input?: GenerateQuestionInput,
+): AppendBuilder[] {
+  const mode = input?.mode ?? question.type;
+  if (!isCategoryAllowed(mode, "integer")) {
+    return [];
+  }
+  return integerAppendBuilders(question, currentValue, input, { relaxIntegerBase: true });
 }
 
 export function appendArithmeticStep(question: Question, input?: GenerateQuestionInput): Question | undefined {
@@ -509,20 +567,26 @@ export function appendFractionStep(question: Question, input?: GenerateQuestionI
     input?.mode === "weakness-focused" && (input.targetTags?.includes("decimals") ?? false);
 
   const decimalValue = parseNumericAnswer(question.answer);
-  if (preferDecimal && decimalValue !== undefined && hasTerminatingDecimal(decimalValue)) {
-    return appendDecimalOperation(question, decimalValue, input);
-  }
-
   const left = parseFractionAnswer(question.answer);
-  if (left) {
-    return appendFractionOperation(question, left, input);
+  const builders: AppendBuilder[] = [];
+
+  if (preferDecimal && decimalValue !== undefined && hasTerminatingDecimal(decimalValue)) {
+    builders.push(...decimalAppendBuilders(question, decimalValue));
+  } else if (left) {
+    builders.push(...fractionAppendBuilders(question, left));
+  } else if (decimalValue !== undefined && hasTerminatingDecimal(decimalValue)) {
+    builders.push(...decimalAppendBuilders(question, decimalValue));
   }
 
-  if (decimalValue !== undefined && hasTerminatingDecimal(decimalValue)) {
-    return appendDecimalOperation(question, decimalValue, input);
+  if (decimalValue !== undefined && Number.isFinite(decimalValue)) {
+    builders.push(...specialtyIntegerAppendBuilders(question, decimalValue, input));
   }
 
-  return undefined;
+  if (builders.length === 0) {
+    return undefined;
+  }
+
+  return pickAppendCandidate(question, builders, input);
 }
 
 export function appendCostStep(question: Question, input?: GenerateQuestionInput): Question | undefined {

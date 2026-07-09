@@ -173,3 +173,56 @@ describe("theme-focused append", () => {
     expect(appended.kind.startsWith("decimal-")).toBe(true);
   });
 });
+
+function fractionsModeQuestion(): Question {
+  const costTemplates: CalculationTemplateSpec[] = [
+    { kind: "fraction-unlike-denom", left: { num: 1, den: 4 }, right: { num: 1, den: 2 } },
+  ];
+  return baseQuestion({
+    type: "fractions",
+    prompt: "1/4 + 1/2 = ?",
+    answer: "3/4",
+    tags: ["addition"],
+    costTemplates,
+    difficulty: "medium",
+    mentalCost: calculateMentalCost(costTemplates, "3/4"),
+  });
+}
+
+describe("fractions-mode non-theme append", () => {
+  it("can append an integer step when non-theme pool is chosen", () => {
+    const question = fractionsModeQuestion();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValueOnce(0.95);
+
+    const extended = appendCostStep(question, {
+      mode: "fractions",
+      difficulty: "medium",
+      context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+    });
+
+    randomSpy.mockRestore();
+
+    expect(extended).toBeDefined();
+    expect(extended!.costTemplates!.length).toBe(question.costTemplates!.length + 1);
+    const appended = extended!.costTemplates![extended!.costTemplates!.length - 1];
+    expect(appended.kind.startsWith("integer-")).toBe(true);
+  });
+
+  it("prefers theme pool when theme ratio roll succeeds", () => {
+    const question = fractionsModeQuestion();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValueOnce(0.1);
+
+    const extended = appendCostStep(question, {
+      mode: "fractions",
+      difficulty: "medium",
+      context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+    });
+
+    randomSpy.mockRestore();
+
+    expect(extended).toBeDefined();
+    expect(extended!.costTemplates!.length).toBe(question.costTemplates!.length + 1);
+    const appended = extended!.costTemplates![extended!.costTemplates!.length - 1];
+    expect(appended.kind.startsWith("fraction-")).toBe(true);
+  });
+});

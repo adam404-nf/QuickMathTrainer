@@ -472,6 +472,6 @@ describe("selectionPolicy Monte Carlo", () => {
     }
     const ratio = theme / total;
     expect(ratio).toBeGreaterThanOrEqual(0.6);
-    expect(ratio).toBeLessThanOrEqual(0.95);
+    expect(ratio).toBeLessThanOrEqual(0.8);
   }, 120_000);
 });
