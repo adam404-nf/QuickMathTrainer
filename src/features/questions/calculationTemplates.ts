@@ -187,10 +187,10 @@ export function unlikeDenomBaseCost(left: Fraction, right: Fraction): number {
 }
 
 function memoryCostForDigitCount(digits: number): number {
-  if (digits <= 1) return 0.5;
-  if (digits === 2) return 1;
-  if (digits === 3) return 1.5;
-  return 2;
+  if (digits <= 1) return 0.6;
+  if (digits === 2) return 1.2;
+  if (digits === 3) return 1.8;
+  return 2.5;
 }
 
 function memoryCostForIntegerAbsoluteValue(value: number): number {

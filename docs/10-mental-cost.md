@@ -122,15 +122,7 @@ lcm = 12 => tier 0.4
 => lcmChunkCost = 4 × 0.4 = 1.6
 ```
 
-### 3.5 兩位數乘法加成
-
-當 LCM 或 Expand 步驟涉及 **兩位數 × 兩位數** 時：
-
-```text
-effectiveCost × 1.25
-```
-
-### 3.6 GCD / 約分分級權重
+### 3.5 GCD / 約分分級權重
 
 約分不再使用固定 `fractionSimplification = 0.5`，而是依 Euclid steps 數決定 multiplier：
 
@@ -155,7 +147,7 @@ fractionSimplificationCost
 × gcdTierMultiplier(gcdSteps)
 ```
 
-### 3.7 小數與換算延伸 Chunk
+### 3.6 小數與換算延伸 Chunk
 
 小數題與「小數↔分數換算」題不新增獨立壓縮常數，而是**複用既有 Chunk**，僅在必要處乘上固定的換算 scale。對應實作於 [`calculationTemplates.ts`](../src/features/questions/calculationTemplates.ts) 的 `costForTemplateSpec()` 與 `costNodeFromCalculationTemplate()`。
 
@@ -202,12 +194,12 @@ questionCost = Σ chunkCost + Σ memoryCost(intermediateResult_i)
 
 | 答案型別 | 規則 | cost |
 |---|---|---|
-| 整數 | 先取絕對值，再看十進位位數 | 1 位 → `0.5`；2 位 → `1`；3 位 → `1.5`；4 位以上 → `2` |
-| 小數 | 看有效數字個數（忽略前導 0 與小數點） | 1 位 → `0.5`；2 位 → `1`；3 位 → `1.5`；4 位以上 → `2` |
-| 分數 | 拆成「分子 + 分母」，各自套用整數規則後相加 | 如 `3/4` → `0.5 + 0.5 = 1`；`23/56` → `1 + 1 = 2` |
+| 整數 | 先取絕對值，再看十進位位數 | 1 位 → `0.6`；2 位 → `1.2`；3 位 → `1.8`；4 位以上 → `2.5` |
+| 小數 | 看有效數字個數（忽略前導 0 與小數點） | 1 位 → `0.6`；2 位 → `1.2`；3 位 → `1.8`；4 位以上 → `2.5` |
+| 分數 | 拆成「分子 + 分母」，各自套用整數規則後相加 | 如 `3/4` → `0.6 + 0.6 = 1.2`；`23/56` → `1.2 + 1.2 = 2.4` |
 | 符號答案 | 如 `|x|` | `0.1` |
 
-範例：單步題 `3/4 + 1/6` 不收 memory；兩步題若第一步結果為 `42`，則該中間結果的 memory cost 為 `1`。
+範例：單步題 `3/4 + 1/6` 不收 memory；兩步題若第一步結果為 `42`，則該中間結果的 memory cost 為 `1.2`。
 
 ---
 
