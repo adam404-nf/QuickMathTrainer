@@ -75,7 +75,12 @@ export function randomFractionPair(difficulty: Difficulty): [Fraction, Fraction]
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const left = randomProperFraction(difficulty);
     const right = randomProperFraction(difficulty);
-    if (isValidDenominatorPair(left.den, right.den)) {
+    // unlike 模板：要求異分母，且避免完全相等分數（相減會得 0）
+    if (
+      left.den !== right.den &&
+      !(left.num === right.num && left.den === right.den) &&
+      isValidDenominatorPair(left.den, right.den)
+    ) {
       return [left, right];
     }
   }
@@ -263,7 +268,12 @@ function costNodeToCalculationTemplate(node: import("./costModel").CostNode): Ca
       return { kind: "fraction-same-denom", denominator: node.left.den };
     }
     if (node.operation === "add" || node.operation === "subtract") {
-      return { kind: "fraction-unlike-denom", left: node.left, right: node.right };
+      return {
+        kind: "fraction-unlike-denom",
+        left: node.left,
+        right: node.right,
+        op: node.operation === "subtract" ? "−" : "+",
+      };
     }
     if (node.operation === "multiply") {
       return { kind: "fraction-multiply", left: node.left, right: node.right };

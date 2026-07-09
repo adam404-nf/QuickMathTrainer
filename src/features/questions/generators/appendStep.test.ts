@@ -34,6 +34,33 @@ describe("appendCostStep", () => {
     expect(extended!.prompt).not.toBe(question.prompt);
   });
 
+  it("does not append a step that cancels the previous operand", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const costTemplates: CalculationTemplateSpec[] = [{ kind: "integer-add", a: 3, b: 4 }];
+    const question = baseQuestion({
+      prompt: "3 + 4 = ?",
+      answer: "7",
+      costTemplates,
+      mentalCost: calculateMentalCost(costTemplates, "7"),
+    });
+
+    // Force subtract builder path repeatedly; canceling −4 must never be accepted.
+    for (let i = 0; i < 40; i += 1) {
+      const extended = appendCostStep(question, {
+        mode: "arithmetic",
+        difficulty: "hard",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      });
+      if (!extended?.costTemplates || extended.costTemplates.length < 2) {
+        continue;
+      }
+      const [prev, next] = extended.costTemplates.slice(-2);
+      if (prev.kind === "integer-add" && next.kind === "integer-subtract") {
+        expect(next.b).not.toBe(prev.b);
+      }
+    }
+  });
+
   it("keeps appending until the target range is reached", () => {
     const question = baseQuestion({ difficulty: "hard", mentalCost: 1 });
     const bucket = costRangeForDifficulty("hard");

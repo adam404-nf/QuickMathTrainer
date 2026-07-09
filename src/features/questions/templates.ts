@@ -32,7 +32,6 @@ import {
   multiplicationTechnique,
   multiplyThenAddTechnique,
   parenthesesMultiplyTechnique,
-  powersAbsCompositeTechnique,
   sameDenominatorAddTechnique,
   sqrtSignedSquareTechnique,
   squareRootTechnique,
@@ -177,11 +176,12 @@ function unlikeDenominatorQuestion(
     if (!pair) continue;
     const [left, right] = pair;
     const common = lcm(left.den, right.den);
-    const template: CalculationTemplateSpec = { kind: "fraction-unlike-denom", left, right };
+    const template: CalculationTemplateSpec = { kind: "fraction-unlike-denom", left, right, op };
     const costTemplates = ct(template);
     const leftNum = left.num * (common / left.den);
     const rightNum = right.num * (common / right.den);
     const resultNum = op === "+" ? leftNum + rightNum : leftNum - rightNum;
+    if (resultNum === 0) continue;
     const answer = formatFraction(simplifyFraction({ num: resultNum, den: common }));
     if (calculateMentalCost(costTemplates, answer) < 2) continue;
     const opSymbol = op === "+" ? "+" : "−";
@@ -978,21 +978,26 @@ export const powersTemplates: readonly QuestionTemplateDescriptor[] = [
       distractors: [variable, `-${variable}`, `${variable}²`, `±${variable}`],
     });
   }),
-  describeTemplate("abs-square", "power", "abs-square", ({ difficulty, kind }) => {
+  describeTemplate("abs-times", "power", "abs-times", ({ difficulty, kind }) => {
     const range = absoluteValueOperandRange(difficulty);
     const a = -randomInt(range.min, range.max);
-    const answer = Math.abs(a) ** 2;
+    const b = randomInt(2, Math.min(9, range.max));
+    const absA = Math.abs(a);
+    const answer = absA * b;
 
     return makeQuestion({
       type: "powers",
-      prompt: `|${a}|² = ?`,
+      prompt: `|${a}| × ${b} = ?`,
       answer: String(answer),
       difficulty,
       tags: ["absolute-value", "multiplication"],
-      costTemplates: ct({ kind: "absolute-value" }, { kind: "square", n: Math.abs(a) }),
-      technique: powersAbsCompositeTechnique(a, answer, true),
+      costTemplates: ct({ kind: "absolute-value" }, { kind: "integer-multiply", a: absA, b }),
+      technique: {
+        name: "先絕對值再乘法",
+        steps: [`|${a}| = ${absA}`, `${absA} × ${b} = ${answer}`],
+      },
       kind,
-      distractors: [answer + 1, answer - 1, Math.abs(a), a * a].map(String),
+      distractors: [answer + 1, answer - 1, absA, a * b].map(String),
     });
   }),
   ...powersCompositeTemplates,

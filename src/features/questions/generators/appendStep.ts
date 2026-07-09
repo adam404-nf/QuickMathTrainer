@@ -7,6 +7,7 @@ import {
   simplifyFraction,
   type Fraction,
 } from "../fractionMath";
+import { hasTrivialCancelViolation } from "../nonZeroStep";
 import type { GenerateQuestionInput, Question } from "../types";
 import {
   canAppendOperationKind,
@@ -166,9 +167,13 @@ function pickAppendCandidate(
 
   for (const { build } of shuffle(pool)) {
     const candidate = build();
-    if (candidate && candidate.mentalCost > question.mentalCost) {
-      return candidate;
+    if (!candidate || candidate.mentalCost <= question.mentalCost) {
+      continue;
     }
+    if (hasTrivialCancelViolation(candidate.costTemplates ?? [])) {
+      continue;
+    }
+    return candidate;
   }
   return undefined;
 }
@@ -314,10 +319,14 @@ function appendIntegerOperation(
     }
     const answer = currentValue - b;
     const template: CalculationTemplateSpec = { kind: "integer-subtract", a: currentValue, b };
+    const nextTemplates = [...existing, template];
+    if (hasTrivialCancelViolation(nextTemplates)) {
+      return undefined;
+    }
     return rebuildQuestion(question, {
       prompt: `${baseExpr} − ${b} = ?`,
       answer: String(answer),
-      costTemplates: [...existing, template],
+      costTemplates: nextTemplates,
       tags: ["subtraction"],
       techniqueStep: `${currentValue} − ${b} = ${answer}`,
     });
@@ -427,11 +436,19 @@ function fractionAppendBuilders(question: Question, left: Fraction): AppendBuild
       operationKind: "fraction-unlike-denom",
       build: () => {
         const right = randomProperFraction(question.difficulty);
+        if (right.den === left.den) {
+          return undefined;
+        }
         const result = simplifyFraction({
           num: left.num * right.den + right.num * left.den,
           den: left.den * right.den,
         });
-        const template: CalculationTemplateSpec = { kind: "fraction-unlike-denom", left, right };
+        const template: CalculationTemplateSpec = {
+          kind: "fraction-unlike-denom",
+          left,
+          right,
+          op: "+",
+        };
         const answer = formatFraction(result);
         if (answer.includes("/0")) {
           return undefined;
@@ -452,6 +469,9 @@ function fractionAppendBuilders(question: Question, left: Fraction): AppendBuild
       operationKind: "fraction-unlike-denom",
       build: () => {
         const right = randomProperFraction(question.difficulty);
+        if (right.den === left.den) {
+          return undefined;
+        }
         const result = simplifyFraction({
           num: left.num * right.den - right.num * left.den,
           den: left.den * right.den,
@@ -459,7 +479,12 @@ function fractionAppendBuilders(question: Question, left: Fraction): AppendBuild
         if (result.num <= 0) {
           return undefined;
         }
-        const template: CalculationTemplateSpec = { kind: "fraction-unlike-denom", left, right };
+        const template: CalculationTemplateSpec = {
+          kind: "fraction-unlike-denom",
+          left,
+          right,
+          op: "−",
+        };
         const answer = formatFraction(result);
         if (answer.includes("/0")) {
           return undefined;

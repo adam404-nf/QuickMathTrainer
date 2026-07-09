@@ -1,12 +1,11 @@
 import { resolveAnswerPath } from "../answerPath";
-import { resultForTemplate } from "../calculationTemplates";
 import {
   costAboveBucket,
   costBelowBucket,
   costRangeForDifficulty,
   matchesMentalCostBucket,
 } from "../mentalCost";
-import { decideZeroStep, isZeroStepResult } from "../nonZeroStep";
+import { decideZeroStep, hasTrivialCancelViolation } from "../nonZeroStep";
 import {
   allowsDecimalPick,
   isCategoryAllowed,
@@ -108,11 +107,11 @@ export function generateFromTemplates(
       question = tryExtendQuestion(question, input);
 
       const specs = question.costTemplates ?? [];
-      const hasZero = specs.some((spec) => isZeroStepResult(resultForTemplate(spec)));
+      const hasViolation = hasTrivialCancelViolation(specs);
       const decision = decideZeroStep({
-        isZero: hasZero,
+        isZero: hasViolation,
         numberRerollCount:
-          hasZero && reroll === REROLLS_PER_TEMPLATE - 1 ? REROLLS_PER_TEMPLATE : reroll,
+          hasViolation && reroll === REROLLS_PER_TEMPLATE - 1 ? REROLLS_PER_TEMPLATE : reroll,
         maxNumberRerolls: REROLLS_PER_TEMPLATE,
       });
       if (decision === "reroll-numbers") {

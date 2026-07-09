@@ -57,7 +57,7 @@ export type CalculationTemplateSpec =
   | { kind: "fourth-root"; root: number }
   | { kind: "symbolic-simplify"; nested?: boolean }
   | { kind: "fraction-same-denom"; denominator: number; needsReduce?: boolean }
-  | { kind: "fraction-unlike-denom"; left: Fraction; right: Fraction }
+  | { kind: "fraction-unlike-denom"; left: Fraction; right: Fraction; op?: "+" | "−" }
   | { kind: "fraction-multiply"; left: Fraction; right: Fraction }
   | { kind: "fraction-divide"; left: Fraction; right: Fraction }
   | { kind: "fraction-to-decimal"; denominator: number }
@@ -106,7 +106,12 @@ export function costNodeFromCalculationTemplate(spec: CalculationTemplateSpec): 
         right: { num: 1, den: spec.denominator },
       };
     case "fraction-unlike-denom":
-      return { kind: "fraction", operation: "add", left: spec.left, right: spec.right };
+      return {
+        kind: "fraction",
+        operation: (spec.op ?? "+") === "−" ? "subtract" : "add",
+        left: spec.left,
+        right: spec.right,
+      };
     case "fraction-multiply":
       return { kind: "fraction", operation: "multiply", left: spec.left, right: spec.right };
     case "fraction-divide":
@@ -302,11 +307,13 @@ function describeStep(spec: CalculationTemplateSpec): { label: string; expressio
         expression: `${formatFraction(f)} + ${formatFraction(f)} = ${formatFraction(fractionOpResult("+", f, f))}`,
       };
     }
-    case "fraction-unlike-denom":
+    case "fraction-unlike-denom": {
+      const op = spec.op ?? "+";
       return {
-        label: "fraction-add",
-        expression: `${formatFraction(spec.left)} + ${formatFraction(spec.right)} = ${formatFraction(fractionOpResult("+", spec.left, spec.right))}`,
+        label: op === "−" ? "fraction-subtract" : "fraction-add",
+        expression: `${formatFraction(spec.left)} ${op} ${formatFraction(spec.right)} = ${formatFraction(fractionOpResult(op, spec.left, spec.right))}`,
       };
+    }
     case "fraction-multiply":
       return {
         label: "fraction-multiply",
@@ -405,7 +412,7 @@ export function resultForTemplate(spec: CalculationTemplateSpec): string {
       return formatFraction(fractionOpResult("+", f, f));
     }
     case "fraction-unlike-denom":
-      return formatFraction(fractionOpResult("+", spec.left, spec.right));
+      return formatFraction(fractionOpResult(spec.op ?? "+", spec.left, spec.right));
     case "fraction-multiply":
       return formatFraction(fractionOpResult("×", spec.left, spec.right));
     case "fraction-divide":
