@@ -1,3 +1,4 @@
+import type { CalculationTemplateSpec } from "./calculationTemplates";
 import type { Difficulty, GenerateQuestionInput, PracticeMode, QuestionType } from "./types";
 
 export type TemplateCategory =
@@ -135,6 +136,24 @@ export function isThemeOperationKind(
   category: TemplateCategory,
 ): boolean {
   return isThemeCategory(input, category);
+}
+
+export function operationKindOfSpec(spec: CalculationTemplateSpec): OperationKind {
+  return spec.kind;
+}
+
+export function countOperationKind(
+  specs: readonly CalculationTemplateSpec[],
+  kind: OperationKind,
+): number {
+  return specs.filter((spec) => operationKindOfSpec(spec) === kind).length;
+}
+
+export function canAppendOperationKind(
+  existing: readonly CalculationTemplateSpec[],
+  kind: OperationKind,
+): boolean {
+  return countOperationKind(existing, kind) < 1 + MAX_SAME_KIND_EXTRA;
 }
 
 export type RelaxableConstraint = "decimal-cap" | "theme-ratio" | "hard-template-ratio";
