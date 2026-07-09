@@ -1,4 +1,4 @@
-import { generateQuestion } from "../questions/registry";
+import { applySessionQuestionsToContext, generateQuestion } from "../questions/registry";
 import type { GenerateQuestionInput, QuestionType } from "../questions/types";
 import { isAnswerCorrect } from "../questions/utils";
 import type { PracticePreferences } from "../settings/types";
@@ -120,14 +120,17 @@ export function advanceSession(session: PracticeSession, attempt: Attempt): Prac
     };
   }
 
-  const nextQuestion = generateQuestion(
-    buildGenerateInput(session.preferences, {
-      recentQuestionIds: attempts.slice(-5).map((item) => item.questionId),
-      seenQuestionIds: getSeenQuestionIds(attempts, session.currentQuestion.id),
-      typeCounts: getTypeCounts(attempts),
-      questionLimit: session.preferences.questionLimit,
-    }),
+  const baseContext = {
+    recentQuestionIds: attempts.slice(-5).map((item) => item.questionId),
+    seenQuestionIds: getSeenQuestionIds(attempts, session.currentQuestion.id),
+    typeCounts: getTypeCounts(attempts),
+    questionLimit: session.preferences.questionLimit,
+  };
+  const context = applySessionQuestionsToContext(
+    baseContext,
+    attempts.map((item) => item.question),
   );
+  const nextQuestion = generateQuestion(buildGenerateInput(session.preferences, context));
 
   return {
     ...session,
