@@ -574,6 +574,7 @@ export function appendFractionStep(question: Question, input?: GenerateQuestionI
   const builders: AppendBuilder[] = [];
 
   if (preferDecimal && decimalValue !== undefined && hasTerminatingDecimal(decimalValue)) {
+    // Weakness decimals: stay on decimal theme builders (Task 6 preferDecimal path).
     builders.push(...decimalAppendBuilders(question, decimalValue));
   } else if (left) {
     builders.push(...fractionAppendBuilders(question, left));
@@ -581,7 +582,13 @@ export function appendFractionStep(question: Question, input?: GenerateQuestionI
     builders.push(...decimalAppendBuilders(question, decimalValue));
   }
 
-  if (decimalValue !== undefined && Number.isFinite(decimalValue)) {
+  // Specialty fractions mode: allow integer non-theme appends (~30%) for theme ~70%.
+  // Skip for weakness-focused decimals so preferDecimal stays on decimal theme.
+  if (
+    !preferDecimal &&
+    decimalValue !== undefined &&
+    Number.isFinite(decimalValue)
+  ) {
     builders.push(...specialtyIntegerAppendBuilders(question, decimalValue, input));
   }
 
