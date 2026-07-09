@@ -41,7 +41,7 @@ import {
   symbolicAbsTechnique,
 } from "./techniques";
 import { createQuestionId, formatDecimal, normalizeAnswer, parseNumericAnswer, pickOne, randomInt, shuffle } from "./utils";
-import type { OperationKind, TemplateCategory } from "./selectionPolicy";
+import { absoluteValueOperandRange, type OperationKind, type TemplateCategory } from "./selectionPolicy";
 
 export interface QuestionTemplateInput {
   difficulty: Difficulty;
@@ -430,7 +430,8 @@ export const arithmeticTemplates: readonly QuestionTemplateDescriptor[] = [
     });
   }),
   describeTemplate("integer-abs-composite", "integer", "integer-abs-composite", ({ difficulty, kind }) => {
-    const a = -randomInt(3, difficulty === "hard" ? 15 : 10);
+    const range = absoluteValueOperandRange(difficulty);
+    const a = -randomInt(range.min, range.max);
     const b = randomInt(2, 9);
     const c = randomInt(2, difficulty === "hard" ? 9 : 6);
     const answer = Math.abs(a) + b * c;
@@ -453,8 +454,9 @@ export const arithmeticTemplates: readonly QuestionTemplateDescriptor[] = [
     });
   }),
   describeTemplate("double-abs", "integer", "double-abs", ({ difficulty, kind }) => {
-    const a = -randomInt(4, 12);
-    const b = -randomInt(2, 8);
+    const range = absoluteValueOperandRange(difficulty);
+    const a = -randomInt(range.min, range.max);
+    const b = -randomInt(range.min, range.max);
     const answer = Math.abs(a) - Math.abs(b);
 
     return makeQuestion({
@@ -943,7 +945,8 @@ export const powersTemplates: readonly QuestionTemplateDescriptor[] = [
     });
   }),
   describeTemplate("sqrt-abs", "power", "sqrt-abs", ({ difficulty, kind }) => {
-    const value = randomInt(3, difficulty === "hard" ? 15 : 11);
+    const range = absoluteValueOperandRange(difficulty);
+    const value = randomInt(range.min, range.max);
     const signed = pickOne([-value, value]);
     const answer = Math.abs(signed);
     const radicand = signed * signed;
@@ -976,7 +979,8 @@ export const powersTemplates: readonly QuestionTemplateDescriptor[] = [
     });
   }),
   describeTemplate("abs-square", "power", "abs-square", ({ difficulty, kind }) => {
-    const a = -randomInt(2, difficulty === "hard" ? 9 : 7);
+    const range = absoluteValueOperandRange(difficulty);
+    const a = -randomInt(range.min, range.max);
     const answer = Math.abs(a) ** 2;
 
     return makeQuestion({

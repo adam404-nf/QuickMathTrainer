@@ -166,6 +166,15 @@ export function neverRelaxCostRange(): true {
   return true;
 }
 
+export function absoluteValueOperandRange(difficulty: Difficulty): { min: number; max: number } {
+  return {
+    easy: { min: 3, max: 20 },
+    medium: { min: 8, max: 40 },
+    hard: { min: 12, max: 70 },
+    extreme: { min: 20, max: 99 },
+  }[difficulty];
+}
+
 /**
  * Mixed 模式專用類別權重；難模板比例對齊 mixedHardTemplateTarget。
  * 軟類別僅 integer + decimal；decimal 仍受 decimalCap 等約束限制。

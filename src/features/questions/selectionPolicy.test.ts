@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  absoluteValueOperandRange,
   HARD_TEMPLATE_CATEGORIES,
   MAX_SAME_KIND_EXTRA,
   NON_ZERO_STEP_TARGET,
@@ -206,6 +207,16 @@ describe("theme and relaxation", () => {
       "hard-template-ratio",
     ]);
     expect(neverRelaxCostRange()).toBe(true);
+  });
+});
+
+describe("absoluteValueOperandRange", () => {
+  it("widens with difficulty to support calculation practice", () => {
+    const easy = absoluteValueOperandRange("easy");
+    const extreme = absoluteValueOperandRange("extreme");
+    expect(easy.max).toBeGreaterThanOrEqual(20);
+    expect(extreme.max).toBeGreaterThan(easy.max);
+    expect(extreme.min).toBeGreaterThan(easy.min);
   });
 });
 

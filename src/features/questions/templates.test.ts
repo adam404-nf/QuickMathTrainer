@@ -9,6 +9,7 @@ import {
   powersTemplates,
 } from "./templates";
 import {
+  absoluteValueOperandRange,
   isDecimalTemplateCategory,
   isHardTemplateCategory,
   type TemplateCategory,
@@ -62,6 +63,22 @@ describe("template category metadata", () => {
   it("keeps powers templates as power", () => {
     for (const c of categoriesOf(powersTemplates)) {
       expect(c).toBe("power");
+    }
+  });
+});
+
+describe("absolute-value operand ranges", () => {
+  it("samples absolute-value arithmetic operands inside policy range for extreme", () => {
+    const range = absoluteValueOperandRange("extreme");
+    const absTemplates = arithmeticTemplates.filter((t) => t.id.includes("abs"));
+    expect(absTemplates.length).toBeGreaterThan(0);
+    for (let i = 0; i < 30; i += 1) {
+      const q = absTemplates[0].generate({ difficulty: "extreme", kind: "fill-in" });
+      const match = q.prompt.match(/\|-?(\d+)\|/);
+      expect(match).toBeTruthy();
+      const n = Number(match![1]);
+      expect(n).toBeGreaterThanOrEqual(range.min);
+      expect(n).toBeLessThanOrEqual(range.max);
     }
   });
 });
