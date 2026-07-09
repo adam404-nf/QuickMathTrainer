@@ -1,10 +1,12 @@
 import { resolveAnswerPath } from "../answerPath";
+import { resultForTemplate } from "../calculationTemplates";
 import {
   costAboveBucket,
   costBelowBucket,
   costRangeForDifficulty,
   matchesMentalCostBucket,
 } from "../mentalCost";
+import { decideZeroStep, isZeroStepResult } from "../nonZeroStep";
 import { isCategoryAllowed, templateWeight } from "../selectionPolicy";
 import { filterTemplates } from "../templates";
 import type { QuestionTemplateDescriptor } from "../templates";
@@ -89,6 +91,20 @@ export function generateFromTemplates(
       });
 
       question = tryExtendQuestion(question, input);
+
+      const specs = question.costTemplates ?? [];
+      const hasZero = specs.some((spec) => isZeroStepResult(resultForTemplate(spec)));
+      const decision = decideZeroStep({
+        isZero: hasZero,
+        numberRerollCount: reroll,
+        maxNumberRerolls: REROLLS_PER_TEMPLATE,
+      });
+      if (decision === "reroll-numbers") {
+        continue;
+      }
+      if (decision === "reject-template") {
+        break;
+      }
 
       const finalized = finalizeQuestion(question, input);
       if (!finalized) {

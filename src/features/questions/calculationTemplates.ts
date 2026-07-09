@@ -378,7 +378,7 @@ function describeStep(spec: CalculationTemplateSpec): { label: string; expressio
   }
 }
 
-function resultForTemplate(spec: CalculationTemplateSpec): string {
+export function resultForTemplate(spec: CalculationTemplateSpec): string {
   switch (spec.kind) {
     case "integer-add":
       return String(spec.a + spec.b);
