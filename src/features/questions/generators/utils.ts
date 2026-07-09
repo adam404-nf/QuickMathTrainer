@@ -5,10 +5,11 @@ import {
   costRangeForDifficulty,
   matchesMentalCostBucket,
 } from "../mentalCost";
+import { isCategoryAllowed, templateWeight } from "../selectionPolicy";
 import { filterTemplates } from "../templates";
 import type { QuestionTemplateDescriptor } from "../templates";
 import type { GenerateQuestionInput, Question } from "../types";
-import { chooseQuestionKind, pickOne } from "../utils";
+import { chooseQuestionKind, pickWeighted } from "../utils";
 import { appendCostStep, MAX_APPEND_STEPS } from "./appendStep";
 
 const MAX_TEMPLATE_ATTEMPTS = 60;
@@ -69,11 +70,17 @@ export function generateFromTemplates(
     return undefined;
   }
 
-  const pool = filtered.length > 0 ? filtered : templates;
+  const allowed = (filtered.length > 0 ? filtered : templates).filter((t) =>
+    isCategoryAllowed(input.mode, t.category),
+  );
+  if (allowed.length === 0) {
+    return undefined;
+  }
+
   const bucket = input.targetMentalCostBucket;
 
   for (let attempt = 0; attempt < MAX_TEMPLATE_ATTEMPTS; attempt += 1) {
-    const template = pickOne(pool);
+    const template = pickWeighted(allowed, (t) => templateWeight(input, t));
 
     for (let reroll = 0; reroll < REROLLS_PER_TEMPLATE; reroll += 1) {
       let question = template.generate({

@@ -217,3 +217,52 @@ export function categoryWeightForMode(
   }
   return isHardTemplateCategory(category) ? 0.2 : category === "integer" ? 0.3 : 0.1;
 }
+
+export function templateWeight(
+  input: GenerateQuestionInput,
+  template: { category: TemplateCategory },
+): number {
+  if (!isCategoryAllowed(input.mode, template.category)) {
+    return 0;
+  }
+  let weight = categoryWeightForMode(input, template.category);
+
+  const themeTarget = themeStepTarget(input);
+  if (themeTarget > 0 && isThemeCategory(input, template.category)) {
+    weight *= 3;
+  }
+
+  const cap = decimalCapForContext(input);
+  const relaxed = input.relaxedConstraints ?? [];
+  if (
+    isDecimalTemplateCategory(template.category) &&
+    cap !== null &&
+    cap > 0 &&
+    !relaxed.includes("decimal-cap")
+  ) {
+    weight *= cap / Math.max(cap, 0.1);
+  }
+  if (isDecimalTemplateCategory(template.category) && cap === 0) {
+    return 0;
+  }
+
+  return weight;
+}
+
+export function allowsDecimalPick(
+  input: GenerateQuestionInput,
+  recentDecimalRatio: number,
+): boolean {
+  const cap = decimalCapForContext(input);
+  if (cap === null) {
+    return true;
+  }
+  if (cap === 0) {
+    return false;
+  }
+  const relaxed = input.relaxedConstraints ?? [];
+  if (!relaxed.includes("decimal-cap") && recentDecimalRatio >= cap) {
+    return false;
+  }
+  return true;
+}
