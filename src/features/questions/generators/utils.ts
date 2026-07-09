@@ -96,7 +96,8 @@ export function generateFromTemplates(
       const hasZero = specs.some((spec) => isZeroStepResult(resultForTemplate(spec)));
       const decision = decideZeroStep({
         isZero: hasZero,
-        numberRerollCount: reroll,
+        numberRerollCount:
+          hasZero && reroll === REROLLS_PER_TEMPLATE - 1 ? REROLLS_PER_TEMPLATE : reroll,
         maxNumberRerolls: REROLLS_PER_TEMPLATE,
       });
       if (decision === "reroll-numbers") {

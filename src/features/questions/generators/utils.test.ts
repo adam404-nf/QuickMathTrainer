@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as nonZeroStep from "../nonZeroStep";
 import { fractionTemplates } from "../templates";
 import { templateWeight } from "../selectionPolicy";
-import type { GenerateQuestionInput } from "../types";
+import type { QuestionTemplateDescriptor } from "../templates";
+import type { GenerateQuestionInput, Question } from "../types";
+import * as questionUtils from "../utils";
+import { generateFromTemplates } from "./utils";
 
 const baseInput = (overrides: Partial<GenerateQuestionInput> = {}): GenerateQuestionInput => ({
   mode: "mixed",
@@ -31,5 +35,73 @@ describe("templateWeight", () => {
     const conversion = fractionTemplates.find((t) => t.category === "conversion")!;
     expect(conversion).toBeDefined();
     expect(templateWeight(baseInput({ mode: "mixed" }), conversion)).toBeGreaterThan(0);
+  });
+});
+
+const zeroStepQuestion: Question = {
+  id: "zero-test",
+  kind: "fill-in",
+  type: "arithmetic",
+  prompt: "5 - 5 = ?",
+  answer: "0",
+  difficulty: "medium",
+  tags: ["arithmetic"],
+  mentalCost: 12,
+  costTemplates: [{ kind: "integer-subtract", a: 5, b: 5 }],
+  technique: { name: "test", steps: [] },
+};
+
+const zeroTemplate: QuestionTemplateDescriptor = {
+  id: "zero-template",
+  category: "integer",
+  operationKind: "integer-subtract",
+  generate: () => zeroStepQuestion,
+};
+
+describe("generateFromTemplates zero-step exhaustion", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls decideZeroStep with count 8 after exhausting number rerolls", () => {
+    const decideSpy = vi.spyOn(nonZeroStep, "decideZeroStep").mockImplementation((params) => {
+      if (params.isZero && params.numberRerollCount >= params.maxNumberRerolls) {
+        return "reject-template";
+      }
+      if (params.isZero) {
+        return "reroll-numbers";
+      }
+      return "accept";
+    });
+    vi.spyOn(questionUtils, "pickWeighted").mockReturnValue(zeroTemplate);
+
+    const result = generateFromTemplates([zeroTemplate], baseInput());
+
+    expect(result).toBeUndefined();
+    expect(decideSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isZero: true,
+        numberRerollCount: 8,
+        maxNumberRerolls: 8,
+      }),
+    );
+  });
+
+  it("returns question when exhausted zero path accepts per decideZeroStep", () => {
+    vi.spyOn(nonZeroStep, "decideZeroStep").mockImplementation((params) => {
+      if (params.isZero && params.numberRerollCount >= params.maxNumberRerolls) {
+        return "accept";
+      }
+      if (params.isZero) {
+        return "reroll-numbers";
+      }
+      return "accept";
+    });
+    vi.spyOn(questionUtils, "pickWeighted").mockReturnValue(zeroTemplate);
+
+    const result = generateFromTemplates([zeroTemplate], baseInput());
+
+    expect(result).toBeDefined();
+    expect(result!.answer).toBe("0");
   });
 });
