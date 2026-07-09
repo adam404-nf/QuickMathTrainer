@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as nonZeroStep from "../nonZeroStep";
 import { fractionTemplates } from "../templates";
-import { templateWeight } from "../selectionPolicy";
+import { allowsDecimalPick, templateWeight } from "../selectionPolicy";
 import type { QuestionTemplateDescriptor } from "../templates";
 import type { GenerateQuestionInput, Question } from "../types";
 import * as questionUtils from "../utils";
@@ -35,6 +35,41 @@ describe("templateWeight", () => {
     const conversion = fractionTemplates.find((t) => t.category === "conversion")!;
     expect(conversion).toBeDefined();
     expect(templateWeight(baseInput({ mode: "mixed" }), conversion)).toBeGreaterThan(0);
+  });
+});
+
+describe("generateFromTemplates decimal cap", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("blocks decimal templates when session ratio is at cap", () => {
+    const decimal = fractionTemplates.find((t) => t.category === "decimal")!;
+    const fraction = fractionTemplates.find((t) => t.category === "fraction")!;
+    const input = baseInput({
+      mode: "mixed",
+      context: {
+        recentQuestionIds: [],
+        seenQuestionIds: new Set(),
+        sessionPrimaryCount: 10,
+        sessionDecimalPrimaryCount: 1,
+      },
+    });
+    expect(allowsDecimalPick(input, 0.1)).toBe(false);
+    expect(templateWeight(input, decimal)).toBeGreaterThan(0);
+    expect(templateWeight(input, fraction)).toBeGreaterThan(0);
+
+    const pickSpy = vi.spyOn(questionUtils, "pickWeighted").mockImplementation((items, weightOf) => {
+      const weights = items.map((item) => Math.max(0, weightOf(item)));
+      const decimalWeight = weights[items.indexOf(decimal)];
+      const fractionWeight = weights[items.indexOf(fraction)];
+      expect(decimalWeight).toBe(0);
+      expect(fractionWeight).toBeGreaterThan(0);
+      return fraction;
+    });
+
+    generateFromTemplates([decimal, fraction], input);
+    expect(pickSpy).toHaveBeenCalled();
   });
 });
 

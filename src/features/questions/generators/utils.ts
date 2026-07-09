@@ -11,6 +11,7 @@ import {
   allowsDecimalPick,
   isCategoryAllowed,
   isDecimalTemplateCategory,
+  recentDecimalRatioFromContext,
   templateWeight,
 } from "../selectionPolicy";
 import { filterTemplates } from "../templates";
@@ -85,7 +86,7 @@ export function generateFromTemplates(
   }
 
   const bucket = input.targetMentalCostBucket;
-  const recentDecimalRatio = input.context.recentDecimalRatio ?? 0;
+  const recentDecimalRatio = recentDecimalRatioFromContext(input.context);
 
   for (let attempt = 0; attempt < MAX_TEMPLATE_ATTEMPTS; attempt += 1) {
     const template = pickWeighted(allowed, (t) => {

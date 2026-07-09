@@ -142,7 +142,10 @@ function pickAppendCandidate(
     return undefined;
   }
 
-  const themeTarget = themeStepTarget(input ?? { mode, targetTags: input?.targetTags });
+  const relaxed = input?.relaxedConstraints ?? [];
+  const themeTarget = relaxed.includes("theme-ratio")
+    ? 0
+    : themeStepTarget(input ?? { mode, targetTags: input?.targetTags });
   let pool = eligible;
 
   if (themeTarget > 0) {

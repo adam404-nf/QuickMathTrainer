@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   absoluteValueOperandRange,
+  allowsDecimalPick,
   HARD_TEMPLATE_CATEGORIES,
   MAX_SAME_KIND_EXTRA,
   NON_ZERO_STEP_TARGET,
@@ -15,10 +16,15 @@ import {
   isThemeCategory,
   mixedHardTemplateTarget,
   neverRelaxCostRange,
+  questionTypeWeight,
+  recentDecimalRatioFromContext,
   relaxationOrder,
+  templateWeight,
   themeStepTarget,
   type TemplateCategory,
 } from "./selectionPolicy";
+import { fractionTemplates } from "./templates";
+import type { GenerateQuestionInput, QuestionContext } from "./types";
 
 describe("selectionPolicy constants", () => {
   it("defines hard-template categories and decimal-only decimal definition", () => {
@@ -238,5 +244,70 @@ describe("categoryWeightForMode", () => {
     const intExtreme = categoryWeightForMode({ mode: "mixed", difficulty: "extreme" }, "integer");
     const intEasy = categoryWeightForMode({ mode: "mixed", difficulty: "easy" }, "integer");
     expect(hardExtreme / (hardExtreme + intExtreme)).toBeGreaterThan(hardEasy / (hardEasy + intEasy));
+  });
+});
+
+describe("allowsDecimalPick and recentDecimalRatioFromContext", () => {
+  const mixedInput = {
+    mode: "mixed" as const,
+    difficulty: "medium" as const,
+    context: { recentQuestionIds: [], seenQuestionIds: new Set<string>() },
+  };
+
+  it("blocks decimal pick when session ratio reaches cap", () => {
+    expect(allowsDecimalPick(mixedInput, 0.09)).toBe(true);
+    expect(allowsDecimalPick(mixedInput, 0.1)).toBe(false);
+    expect(allowsDecimalPick(mixedInput, 0.25)).toBe(false);
+  });
+
+  it("allows decimal pick when decimal-cap is relaxed", () => {
+    expect(
+      allowsDecimalPick({ ...mixedInput, relaxedConstraints: ["decimal-cap"] }, 0.5),
+    ).toBe(true);
+  });
+
+  it("derives ratio from session counts when present", () => {
+    const context: QuestionContext = {
+      recentQuestionIds: [],
+      seenQuestionIds: new Set(),
+      sessionPrimaryCount: 10,
+      sessionDecimalPrimaryCount: 1,
+    };
+    expect(recentDecimalRatioFromContext(context)).toBe(0.1);
+    expect(recentDecimalRatioFromContext({ ...context, recentDecimalRatio: 0.99 })).toBe(0.1);
+  });
+});
+
+describe("relaxedConstraints consumption", () => {
+  const baseMixed = {
+    mode: "mixed" as const,
+    difficulty: "extreme" as const,
+    context: { recentQuestionIds: [], seenQuestionIds: new Set<string>() },
+  };
+
+  it("lowers mixed hard-template weights when hard-template-ratio is relaxed", () => {
+    const strict = categoryWeightForMode(baseMixed, "fraction");
+    const relaxed = categoryWeightForMode(
+      { ...baseMixed, relaxedConstraints: ["hard-template-ratio"] },
+      "fraction",
+    );
+    expect(relaxed).toBeLessThan(strict);
+    expect(questionTypeWeight(baseMixed, "arithmetic")).toBeLessThan(
+      questionTypeWeight({ ...baseMixed, relaxedConstraints: ["hard-template-ratio"] }, "arithmetic"),
+    );
+  });
+
+  it("skips theme boost when theme-ratio is relaxed", () => {
+    const fraction = fractionTemplates.find((t) => t.category === "fraction")!;
+    const base: GenerateQuestionInput = {
+      mode: "fractions",
+      difficulty: "medium",
+      context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+    };
+    const relaxed: GenerateQuestionInput = {
+      ...base,
+      relaxedConstraints: ["theme-ratio"],
+    };
+    expect(templateWeight(base, fraction)).toBeGreaterThan(templateWeight(relaxed, fraction));
   });
 });

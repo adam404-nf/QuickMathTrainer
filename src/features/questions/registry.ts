@@ -12,10 +12,17 @@ import {
 } from "./mentalCost";
 import { getQuestionTypesForTags } from "./templates";
 import {
+  isDecimalTemplateCategory,
   questionTypeWeight,
   relaxationOrder,
 } from "./selectionPolicy";
-import type { GenerateQuestionInput, Question, QuestionGenerator, QuestionType } from "./types";
+import type {
+  GenerateQuestionInput,
+  Question,
+  QuestionContext,
+  QuestionGenerator,
+  QuestionType,
+} from "./types";
 import { pickWeighted } from "./utils";
 
 const generatorByType: Record<QuestionType, QuestionGenerator> = {
@@ -119,6 +126,32 @@ function tryGenerateQuestion(input: GenerateQuestionInput): Question | undefined
   }
 
   return undefined;
+}
+
+/** 將剛生成的題目累積進 session context，更新 recentDecimalRatio 供下一題使用。 */
+export function updateQuestionContextAfterGenerate(
+  context: QuestionContext,
+  question: Question,
+): QuestionContext {
+  const sessionPrimaryCount = (context.sessionPrimaryCount ?? 0) + 1;
+  const sessionDecimalPrimaryCount =
+    (context.sessionDecimalPrimaryCount ?? 0) +
+    (question.templateCategory && isDecimalTemplateCategory(question.templateCategory) ? 1 : 0);
+
+  return {
+    ...context,
+    sessionPrimaryCount,
+    sessionDecimalPrimaryCount,
+    recentDecimalRatio: sessionDecimalPrimaryCount / sessionPrimaryCount,
+  };
+}
+
+/** 依序套用 session 內已出題目，累積 recentDecimalRatio（供 practice session 接線）。 */
+export function applySessionQuestionsToContext(
+  context: QuestionContext,
+  questions: readonly Question[],
+): QuestionContext {
+  return questions.reduce(updateQuestionContextAfterGenerate, context);
 }
 
 export function generateQuestion(input: GenerateQuestionInput): Question {

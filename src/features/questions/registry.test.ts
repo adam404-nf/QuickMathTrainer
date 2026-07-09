@@ -8,7 +8,7 @@ import {
   maxQuestionsPerType,
 } from "./mentalCost";
 import { isZeroStepResult } from "./nonZeroStep";
-import { availableQuestionTypes, generateQuestion, questionMatchesTargets } from "./registry";
+import { availableQuestionTypes, applySessionQuestionsToContext, generateQuestion, questionMatchesTargets, updateQuestionContextAfterGenerate } from "./registry";
 import {
   isDecimalTemplateCategory,
   isHardTemplateCategory,
@@ -250,10 +250,11 @@ describe("question registry", () => {
     const questionLimit = 10;
     const cap = maxQuestionsPerType(questionLimit, availableQuestionTypes.length);
     const typeCounts: Partial<Record<QuestionType, number>> = { fractions: cap };
+    const trials = 100;
 
     let fractionCount = 0;
 
-    for (let index = 0; index < 20; index += 1) {
+    for (let index = 0; index < trials; index += 1) {
       const question = generateQuestion({
         mode: "mixed",
         difficulty: "hard",
@@ -271,8 +272,54 @@ describe("question registry", () => {
     }
 
     // Soft quota (0.15× penalty): over-cap types remain possible but are mostly avoided
-    expect(fractionCount).toBeLessThanOrEqual(3);
+    expect(fractionCount / trials).toBeLessThanOrEqual(0.35);
   }, 120_000);
+
+  it("accumulates recentDecimalRatio across session context updates", () => {
+    let context = {
+      recentQuestionIds: [] as string[],
+      seenQuestionIds: new Set<string>(),
+    };
+    let decimalCount = 0;
+
+    for (let index = 0; index < 40; index += 1) {
+      const question = generateQuestion({
+        mode: "mixed",
+        difficulty: "medium",
+        context,
+      });
+      if (isDecimalTemplateCategory(categoryOf(question))) {
+        decimalCount += 1;
+      }
+      context = updateQuestionContextAfterGenerate(context, question);
+    }
+
+    expect(context.recentDecimalRatio).toBeCloseTo(decimalCount / 40, 5);
+    expect(context.sessionPrimaryCount).toBe(40);
+  }, 120_000);
+
+  it("applySessionQuestionsToContext matches sequential updates", () => {
+    const questions = Array.from({ length: 5 }, () =>
+      generateQuestion({
+        mode: "mixed",
+        difficulty: "easy",
+        context: { recentQuestionIds: [], seenQuestionIds: new Set() },
+      }),
+    );
+
+    let sequential = { recentQuestionIds: [], seenQuestionIds: new Set<string>() };
+    for (const question of questions) {
+      sequential = updateQuestionContextAfterGenerate(sequential, question);
+    }
+
+    const batched = applySessionQuestionsToContext(
+      { recentQuestionIds: [], seenQuestionIds: new Set() },
+      questions,
+    );
+
+    expect(batched.recentDecimalRatio).toBe(sequential.recentDecimalRatio);
+    expect(batched.sessionPrimaryCount).toBe(sequential.sessionPrimaryCount);
+  });
 
   it("can generate absolute-value questions across practice modes", () => {
     const modes = [

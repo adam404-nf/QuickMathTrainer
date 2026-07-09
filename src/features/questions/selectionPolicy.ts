@@ -1,5 +1,5 @@
 import type { CalculationTemplateSpec } from "./calculationTemplates";
-import type { Difficulty, GenerateQuestionInput, PracticeMode, QuestionType } from "./types";
+import type { Difficulty, GenerateQuestionInput, PracticeMode, QuestionContext, QuestionType } from "./types";
 
 export type TemplateCategory =
   | "integer"
@@ -84,7 +84,10 @@ export function questionTypeWeight(input: GenerateQuestionInput, type: QuestionT
     return 1;
   }
   // mixed：依難度目標比例偏向 fractions/powers
-  const hard = mixedHardTemplateTarget(input.difficulty);
+  const relaxed = input.relaxedConstraints ?? [];
+  const hard = relaxed.includes("hard-template-ratio")
+    ? 0.5
+    : mixedHardTemplateTarget(input.difficulty);
   if (type === "fractions") return hard * 0.55;
   if (type === "powers") return hard * 0.45;
   const arithEase = input.difficulty === "easy" ? 0.82 : 1;
@@ -180,8 +183,17 @@ export function absoluteValueOperandRange(difficulty: Difficulty): { min: number
  * Mixed 模式專用類別權重；難模板比例對齊 mixedHardTemplateTarget。
  * 軟類別僅 integer + decimal；decimal 仍受 decimalCap 等約束限制。
  */
-export function categoryWeightForMixed(difficulty: Difficulty, category: TemplateCategory): number {
-  const hardShare = mixedHardTemplateTarget(difficulty);
+/** 放寬 hard-template-ratio 時使用的中性難模板占比（低於各難度目標）。 */
+const RELAXED_MIXED_HARD_SHARE = 0.5;
+
+export function categoryWeightForMixed(
+  difficulty: Difficulty,
+  category: TemplateCategory,
+  relaxed: readonly RelaxableConstraint[] = [],
+): number {
+  const hardShare = relaxed.includes("hard-template-ratio")
+    ? RELAXED_MIXED_HARD_SHARE
+    : mixedHardTemplateTarget(difficulty);
   const softShare = 1 - hardShare;
   if (isHardTemplateCategory(category)) {
     // 均分於四類 hardShare（實際可調，但比例維持目標）
@@ -197,7 +209,12 @@ export function categoryWeightForMixed(difficulty: Difficulty, category: Templat
 }
 
 export function categoryWeightForMode(
-  input: { mode: PracticeMode; difficulty: Difficulty; targetTags?: readonly string[] },
+  input: {
+    mode: PracticeMode;
+    difficulty: Difficulty;
+    targetTags?: readonly string[];
+    relaxedConstraints?: readonly RelaxableConstraint[];
+  },
   category: TemplateCategory,
 ): number {
   if (!isCategoryAllowed(input.mode, category)) {
@@ -205,7 +222,7 @@ export function categoryWeightForMode(
   }
 
   if (input.mode === "mixed") {
-    return categoryWeightForMixed(input.difficulty, category);
+    return categoryWeightForMixed(input.difficulty, category, input.relaxedConstraints ?? []);
   }
 
   if (input.mode === "arithmetic") {
@@ -256,26 +273,30 @@ export function templateWeight(
   }
   let weight = categoryWeightForMode(input, template.category);
 
+  const relaxed = input.relaxedConstraints ?? [];
   const themeTarget = themeStepTarget(input);
-  if (themeTarget > 0 && isThemeCategory(input, template.category)) {
+  if (
+    themeTarget > 0 &&
+    !relaxed.includes("theme-ratio") &&
+    isThemeCategory(input, template.category)
+  ) {
     weight *= 3;
   }
 
   const cap = decimalCapForContext(input);
-  const relaxed = input.relaxedConstraints ?? [];
-  if (
-    isDecimalTemplateCategory(template.category) &&
-    cap !== null &&
-    cap > 0 &&
-    !relaxed.includes("decimal-cap")
-  ) {
-    weight *= cap / Math.max(cap, 0.1);
-  }
   if (isDecimalTemplateCategory(template.category) && cap === 0) {
     return 0;
   }
 
   return weight;
+}
+
+export function recentDecimalRatioFromContext(context: QuestionContext): number {
+  const total = context.sessionPrimaryCount ?? 0;
+  if (total > 0) {
+    return (context.sessionDecimalPrimaryCount ?? 0) / total;
+  }
+  return context.recentDecimalRatio ?? 0;
 }
 
 export function allowsDecimalPick(

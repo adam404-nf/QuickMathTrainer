@@ -52,6 +52,10 @@ export interface QuestionContext {
   typeCounts?: Partial<Record<QuestionType, number>>;
   /** 本次練習總題數，用於計算每題型上限。 */
   questionLimit?: number;
+  /** 本次練習已生成主模板總數（供累積小數比例）。 */
+  sessionPrimaryCount?: number;
+  /** 本次練習主模板為 decimal 的累積數。 */
+  sessionDecimalPrimaryCount?: number;
   /** 近期主模板為 decimal 的比例，供 allowsDecimalPick 小數上限約束。 */
   recentDecimalRatio?: number;
 }
