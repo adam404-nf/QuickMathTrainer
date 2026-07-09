@@ -20,8 +20,8 @@
 **成功方向：**
 
 1. 一般與 mixed 模式小數題約 10%，符合考試導向。
-2. mixed 難題以分數＋冪次為主，整數為輔。
-3. 專項／弱項整題步驟約 80% 落在主題。
+2. mixed 難題以難模板（分數、冪次、轉換、分數小數混合）為主，整數為輔。
+3. 專項／弱項整題步驟約 70% 落在主題。
 4. 計算步驟中間結果約 98% 不為 0。
 5. **不改** `mentalCost` 公式與 difficulty cost range。
 
@@ -43,11 +43,12 @@
 | 議題 | 確認結果 |
 |------|----------|
 | 「小數模板」定義 | 僅 `decimal` 分類：純小數運算（加減乘、小數平方、小數複合等）。**不含**分數↔小數轉換、**不含**分數小數混合。 |
-| 「難模板」定義 | `fraction` + `power`。 |
-| Mixed 分數＋冪次合計目標 | `easy` 65%、`medium` 70%、`hard` 75%、`extreme` 80%；其餘多為整數。 |
-| 小數上限 | 一般／mixed ~10%；`PracticeMode === "fractions"`（分數專項）~20%；弱項目標含 `decimals` 時走主題 80%，**不受** 10% 上限壓制。 |
-| 專項／弱項聚焦 | 整題 `costTemplates` 步驟中，主題步驟占比 ~80%；允許同題同類步驟可控重複。 |
-| 與 cost 衝突 | 合法題 + cost in-range 最優先；重試耗盡可放寬比例，**不放寬** cost range。 |
+| 「難模板」定義 | `fraction` + `power` + `conversion` + `mixed-decimal-fraction`。 |
+| Mixed 難模板合計目標 | `easy` 65%、`medium` 70%、`hard` 75%、`extreme` 80%；其餘多為整數。 |
+| 小數上限 | 一般／mixed ~10%；`PracticeMode === "fractions"`（分數小數專項）~20%；`arithmetic` 專項小數硬排除（見模式硬排除）；弱項目標含 `decimals` 時走主題 70%，**不受** 10% 上限壓制。 |
+| 專項／弱項聚焦 | 整題 `costTemplates` 步驟中，主題步驟占比 ~70%；允許同題同類步驟可控重複。 |
+| 模式硬排除 | `arithmetic`（整數）：禁止分數、小數、次方、開方等；`fractions`（分數小數）：禁止次方、開方等。硬排除不可因重試耗盡而放寬。 |
+| 與 cost 衝突 | 合法題 + cost in-range 最優先；重試耗盡可放寬比例，**不放寬** cost range 與模式硬排除。 |
 | 非零 | 每個計算步驟的中間結果（`resultForTemplate`）~98% 不為 0；整題最終答案不另設硬性非零。 |
 | 絕對值 | 教學意圖改為「絕對值是一種計算方式」，可依難度用更大數字範圍；非零仍以 reroll 為主。 |
 | mentalCost | **不改**公式、**不放寬** difficulty cost range。 |
@@ -64,7 +65,7 @@
 
 - 定義模板分類 metadata 與查詢 API。
 - 依 `PracticeMode`、`difficulty`、`targetTags` 等輸入，輸出選擇權重／配額／約束。
-- 提供「小數上限是否生效」「主題步驟目標比例」「難模板目標比例」「非零接受率」等可測常數與函式。
+- 提供「小數上限是否生效」「主題步驟目標比例」「難模板目標比例」「模式硬排除」「非零接受率」等可測常數與函式。
 
 **不負責：**
 
@@ -93,20 +94,20 @@
 | `fraction` | 分數運算 | 否 | 是 |
 | `decimal` | 純小數運算 | **是** | 否 |
 | `power` | 冪次／根號等 | 否 | 是 |
-| `conversion` | 分數↔小數轉換 | 否 | 否 |
-| `mixed-decimal-fraction` | 分數與小數混合運算 | 否 | 否 |
+| `conversion` | 分數↔小數轉換 | 否 | **是** |
+| `mixed-decimal-fraction` | 分數與小數混合運算 | 否 | **是** |
 
 **明確邊界：**
 
 - 「小數模板」＝僅 `decimal`。
-- `conversion` 與 `mixed-decimal-fraction` **不**受小數 ~10%／~20% 上限約束（它們不是「小數模板」）。
-- 「難模板」＝`fraction` ∪ `power`；mixed 模式下的分數＋冪次合計目標只計算這兩類。
+- `conversion` 與 `mixed-decimal-fraction` **不**受小數 ~10%／~20% 上限約束（它們不是「小數模板」），但**計入**難模板。
+- 「難模板」＝`fraction` ∪ `power` ∪ `conversion` ∪ `mixed-decimal-fraction`；mixed 模式下的難模板合計目標計算這四類。
 
 分類必須掛在模板 metadata 上，供 policy 與 Monte Carlo 統計使用，避免依 tag 字串猜測。
 
 ### 3.4 與現有 type quota 的關係
 
-現有依 `QuestionType`（如 arithmetic／fractions／powers）的 session quota **降級為軟上限**：只防止單一題型極端壟斷，必須**讓位**給本規格的難模板合計、小數上限、主題 80% 等權重。當 soft quota 與 policy 目標衝突時，以 §7 優先序處理。
+現有依 `QuestionType`（如 arithmetic／fractions／powers）的 session quota **降級為軟上限**：只防止單一題型極端壟斷，必須**讓位**給本規格的難模板合計、小數上限、主題 70% 等權重。當 soft quota 與 policy 目標衝突時，以 §7 優先序處理。
 
 ---
 
@@ -120,23 +121,26 @@
 
 | 情境 | 目標占比 | 說明 |
 |------|----------|------|
-| `mixed`，以及非分數專項的一般出題（例如 `arithmetic`／`powers` 專項） | ~10% | 考試導向：純小數少於分數；`arithmetic`／`powers` 專項仍受此小數上限 |
-| `PracticeMode === "fractions"` | ~20% | 分數專項內允許略多純小數題 |
-| `weakness-focused` 且 `targetTags` 含 `decimals` | 不套用 10% 上限 | 改走 §4.3 主題 ~80%（此時主題即 decimals，小數題／步驟會明顯高於 10%） |
-| 其他 `weakness-focused`／專項（主題不是 decimals） | 主題步驟 ~80% | 非主題的 ~20% 可含 `decimal`；若與一般小數上限衝突，依 §7：主題比例優先於小數上限 |
+| `mixed`，以及允許小數的非分數專項（例如 `powers`） | ~10% | 考試導向：純小數少於分數；`powers` 專項仍受此小數上限 |
+| `PracticeMode === "fractions"` | ~20% | 分數小數專項內允許略多純小數題 |
+| `PracticeMode === "arithmetic"` | **0%（硬排除）** | 整數模式禁止小數（見 §4.4）；不套用 ~10% 小數配額 |
+| `weakness-focused` 且 `targetTags` 含 `decimals` | 不套用 10% 上限 | 改走 §4.3 主題 ~70%（此時主題即 decimals，小數題／步驟會明顯高於 10%） |
+| 其他 `weakness-focused`／專項（主題不是 decimals，且非 `arithmetic`） | 主題步驟 ~70% | 非主題的 ~30% 可含 `decimal`；若與一般小數上限衝突，依 §7：主題比例優先於小數上限 |
 
-### 4.2 Mixed 模式：難模板（`fraction` + `power`）合計
+### 4.2 Mixed 模式：難模板合計
+
+難模板＝`fraction` + `power` + `conversion` + `mixed-decimal-fraction`。
 
 對應現有 `Difficulty = "easy" | "medium" | "hard" | "extreme"`：
 
-| `difficulty` | 中文對照 | 分數＋冪次合計目標 | 其餘（多為 `integer`） |
-|--------------|----------|--------------------|------------------------|
+| `difficulty` | 中文對照 | 難模板合計目標 | 其餘（多為 `integer`；可含 `decimal`） |
+|--------------|----------|----------------|----------------------------------------|
 | `easy` | 基礎 | 65% | ~35% |
 | `medium` | 普通 | 70% | ~30% |
 | `hard` | 挑戰 | 75% | ~25% |
 | `extreme` | 極限 | 80% | ~20% |
 
-本表僅適用 `mode === "mixed"`。`conversion` 與 `mixed-decimal-fraction` 不計入難模板合計；它們若出現，計入「其餘」，且長期不得把難模板合計拉低到明顯低於目標（以 soft 調整與重試達成）。
+本表僅適用 `mode === "mixed"`。長期不得把難模板合計拉低到明顯低於目標（以 soft 調整與重試達成）。
 
 現有 type quota 必須讓位給本表權重。
 
@@ -144,13 +148,31 @@
 
 | 規則 | 目標 |
 |------|------|
-| 整題 `costTemplates` 中，主題相關步驟占比 | ~80% |
-| 非主題步驟 | ~20% |
+| 整題 `costTemplates` 中，主題相關步驟占比 | ~70% |
+| 非主題步驟 | ~30% |
 | 主模板 | 優先選主題模板 |
 | cost 不足需 append | 優先追加同主題步驟 |
 | 同題同類步驟重複 | 允許可控重複（見 §5） |
 
 「主題」由 `mode`／`targetTags` 決定（例如 fractions 專項、weakness 的 `decimals`／`absolute-value` 等）。步驟是否算主題，以該步驟對應模板分類／specialty tags 與目標的對應關係判定，規則需在 policy 內集中實作並單測。
+
+主題 ~70% 僅在**未被 §4.4 硬排除**的模板池內計算；硬排除的分類永遠不得出現在主模板或任何步驟中。
+
+### 4.4 模式硬排除（不可放寬）
+
+下列為**硬約束**：主模板與整題所有步驟（含 `appendStep`）皆適用；重試耗盡也**不得**放寬。
+
+| `PracticeMode` | 中文對照 | 禁止出現的操作／分類 | 允許的主要分類 |
+|----------------|----------|----------------------|----------------|
+| `arithmetic` | 整數 | 分數、小數、次方、開方等——即禁止 `fraction`、`decimal`、`power`、`conversion`、`mixed-decimal-fraction` | 僅 `integer` |
+| `fractions` | 分數小數 | 次方、開方等——即禁止 `power` | `integer`、`fraction`、`decimal`、`conversion`、`mixed-decimal-fraction` |
+
+說明：
+
+- 「不會出現」指整題任何步驟都不得含被禁操作，不只是主模板。
+- `fractions` 模式對應產品上的「分數小數」專項：可含分數與小數相關操作，但不可含冪次／根號。
+- `mixed`／`powers`／`weakness-focused` 不套用本表的整數／分數小數硬排除；弱項若目標本身含冪次等，仍依主題規則，不受本表禁令。
+- 與 §4.1／§4.3 的關係：硬排除優先於小數上限與主題比例；被禁分類的目標占比視為 0。
 
 ---
 
@@ -166,7 +188,7 @@
 
 ### 5.2 同題同類可控重複
 
-為達成主題 ~80% 且仍能墊高 cost，允許同一題內同類步驟可控重複：
+為達成主題 ~70% 且仍能墊高 cost，允許同一題內同類步驟可控重複：
 
 - **「同類」定義：** 以步驟所對應模板的**運算族**判定（例如同分母加法、異分母減法、小數乘法各為一類），而非僅六大分類（`fraction` 下可有多個運算族）。
 - **上限常數：** `MAX_SAME_KIND_EXTRA = 2`——同題、同一運算族在已出現 1 次後，最多再追加 **2** 次（該族合計最多 3 次）。超過則改選其他同主題運算族，或依 §7 處理。
@@ -205,15 +227,16 @@
 
 當「合法題 + cost in-range」「主題／難度比例」「小數上限」無法同時滿足時，依下列優先序：
 
+0. **模式硬排除**（§4.4；永遠生效，不參與放寬）。
 1. **合法題，且 `mentalCost` 落在該 difficulty 的 cost range 內**（不可放寬 range）。
-2. **主題比例／難模板比例**（專項 80%、mixed 難模板合計等）。
-3. **小數上限**（一般／mixed ~10% 等）。
+2. **主題比例／難模板比例**（專項 70%、mixed 難模板合計等）。
+3. **小數上限**（一般／mixed ~10% 等；`arithmetic` 的小數禁令屬第 0 項，非本項）。
 
 **重試策略：**
 
-- 在既有 registry 重試預算內，依權重重抽模板／數字／append。
+- 在既有 registry 重試預算內，依權重重抽模板／數字／append；抽樣池須先套用 §4.4 硬排除。
 - **重試耗盡：** 可依序放寬第 3 項、再放寬第 2 項的嚴格度（例如暫時允許偏離目標比例），以產出合法且 cost in-range 的題。
-- **永不放寬：** `mentalCost` 的 difficulty cost range，以及「題目必須合法可答」的約束。
+- **永不放寬：** 模式硬排除（§4.4）、`mentalCost` 的 difficulty cost range，以及「題目必須合法可答」的約束。
 
 ---
 
@@ -222,10 +245,11 @@
 | 風險 | 說明 | 緩解 |
 |------|------|------|
 | cost 打架 | 主題／難模板／非零約束使 in-range 題變少 | 明確優先序；重試耗盡只放寬比例不放寬 range；同主題可控重複墊高 cost |
-| 步驟 80% 難控 | 多步驟題 append 後主題占比漂移 | append 優先同主題；同類可控重複；Monte Carlo 驗證步驟級占比 |
+| 步驟 70% 難控 | 多步驟題 append 後主題占比漂移 | append 優先同主題；同類可控重複；Monte Carlo 驗證步驟級占比 |
 | 分類邊界 | 轉換／混合被誤算進小數上限 | metadata 明確六類；小數僅 `decimal`；單測分類查詢 |
+| 模式硬排除被軟化 | 重試耗盡時誤放行分數／冪次進整數模式 | 硬排除列為永不放寬；抽樣池預先過濾；單測＋Monte Carlo 驗證零出現 |
 | quota 衝突 | 舊 type quota 與新權重互搶 | quota 改軟上限並讓位給 policy；衝突走 §7 |
-| 弱項從硬篩到機率 | 既有 weakness 偏硬過濾，改 80% 機率後行為改變 | 文件化；回歸 registry 弱項測試；decimals 弱項不受 10% 壓制 |
+| 弱項從硬篩到機率 | 既有 weakness 偏硬過濾，改 70% 機率後行為改變 | 文件化；回歸 registry 弱項測試；decimals 弱項不受 10% 壓制 |
 | 抽象層成本 | 多一層 policy 增加間接性 | 單一模組、薄 API；消費者只讀 policy，禁止散落魔術數字 |
 
 ---
@@ -236,7 +260,7 @@
 
 - 新增並接入 `selectionPolicy`（權重唯一來源）。
 - 為模板補齊分類 metadata（`integer`／`fraction`／`decimal`／`power`／`conversion`／`mixed-decimal-fraction`）。
-- 實作 §4–§7 的機率、組題、非零、絕對值數字範圍與衝突優先序。
+- 實作 §4–§7 的機率、模式硬排除、組題、非零、絕對值數字範圍與衝突優先序。
 - 調整 type quota 為軟上限並讓位給 policy。
 - 單元測試與 Monte Carlo 驗證；回歸既有出題／cost 測試。
 - 絕對值教學意圖所需的**極小**文案調整（若有必要）。
@@ -255,13 +279,14 @@
 
 ### 10.1 單元測試（policy）
 
-- 分類 metadata：小數僅 `decimal`；難模板為 `fraction`+`power`。
-- 各情境權重：`mixed`／非 fractions 專項小數 ~10%、`fractions` 專項小數 ~20%、弱項 `decimals` 不受 10% 壓制。
+- 分類 metadata：小數僅 `decimal`；難模板為 `fraction`+`power`+`conversion`+`mixed-decimal-fraction`。
+- 各情境權重：`mixed`／`powers` 小數 ~10%、`fractions` 專項小數 ~20%、`arithmetic` 小數 0%（硬排除）、弱項 `decimals` 不受 10% 壓制。
 - Mixed 各 `difficulty` 難模板合計目標（easy 65／medium 70／hard 75／extreme 80）。
-- 專項／弱項主題步驟目標 ~80%。
+- 專項／弱項主題步驟目標 ~70%。
+- 模式硬排除：`arithmetic` 禁止 `fraction`／`decimal`／`power`／`conversion`／`mixed-decimal-fraction`；`fractions` 禁止 `power`；耗盡重試仍不放寬。
 - `MAX_SAME_KIND_EXTRA = 2` 行為。
 - 非零接受率參數（~98%／~2%）與 fallback 順序介面。
-- 衝突優先序：模擬耗盡重試時放寬比例、不放寬 cost range。
+- 衝突優先序：模擬耗盡重試時放寬比例、不放寬 cost range 與模式硬排除。
 
 ### 10.2 Monte Carlo 驗證
 
@@ -269,10 +294,12 @@
 
 | 指標 | 期望 |
 |------|------|
-| `mixed`（及非 fractions 專項）小數主模板占比 | ~10% |
+| `mixed`（及 `powers` 等允許小數的非 fractions 專項）小數主模板占比 | ~10% |
 | `fractions` 專項小數主模板占比 | ~20% |
+| `arithmetic` 專項 | 主模板與步驟皆無分數／小數／次方／開方（硬排除，出現率 0） |
+| `fractions` 專項 | 主模板與步驟皆無次方／開方（硬排除，出現率 0） |
 | `mixed` × 各難度難模板合計 | easy 65%／medium 70%／hard 75%／extreme 80% |
-| 專項／弱項主題步驟占比 | ~80% |
+| 專項／弱項主題步驟占比 | ~70% |
 | 步驟中間結果為 0 的占比 | ~2% |
 | 弱項 `decimals` | 主題高聚焦，且不被 10% 小數上限壓制 |
 
@@ -289,11 +316,12 @@
 1. 出題權重只來自 `selectionPolicy`；registry／generators／append 無衝突硬編碼比例。
 2. 模板皆有明確分類；「小數」「難模板」定義與 §3.3 一致。
 3. Monte Carlo 達到 §10.2 的占比目標（在約定容差內）。
-4. 專項／弱項步驟級主題聚焦 ~80%，且同主題可控重複可墊高 cost。
+4. 專項／弱項步驟級主題聚焦 ~70%，且同主題可控重複可墊高 cost。
 5. 步驟中間結果非零 ~98%；零結果處理順序為 reroll → 少數接受 → 換模板。
 6. 絕對值題依難度可用更大數字範圍，體現「計算方式」意圖。
 7. **未**修改 mentalCost 公式與 cost range；既有 cost 回歸通過。
-8. 衝突時永遠優先合法題 + cost in-range；耗盡只放寬比例。
+8. 衝突時永遠優先合法題 + cost in-range；耗盡只放寬比例；模式硬排除永不放寬。
+9. `arithmetic` 模式不出分數／小數／次方／開方；`fractions` 模式不出次方／開方。
 
 ---
 
