@@ -41,6 +41,9 @@ coverage/
 *.swo
 *~
 
+# Git worktrees (local isolation)
+.worktrees/
+
 # Cursor local state
 .cursor/
 
