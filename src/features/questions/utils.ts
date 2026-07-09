@@ -12,6 +12,25 @@ export function pickOne<T>(items: readonly T[]): T {
   return items[randomInt(0, items.length - 1)];
 }
 
+export function pickWeighted<T>(items: readonly T[], weightOf: (item: T) => number): T {
+  if (items.length === 0) {
+    throw new Error("Cannot pick from an empty array.");
+  }
+  const weights = items.map((item) => Math.max(0, weightOf(item)));
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  if (total <= 0) {
+    throw new Error("Cannot pick from all-zero weights.");
+  }
+  let target = Math.random() * total;
+  for (let i = 0; i < items.length; i += 1) {
+    target -= weights[i];
+    if (target <= 0) {
+      return items[i];
+    }
+  }
+  return items[items.length - 1];
+}
+
 export function shuffle<T>(items: readonly T[]): T[] {
   return [...items].sort(() => Math.random() - 0.5);
 }

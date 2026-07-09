@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAnswerFormatHint, isAnswerCorrect, normalizeAnswer, parseNumericAnswer } from "./utils";
+import { getAnswerFormatHint, isAnswerCorrect, normalizeAnswer, parseNumericAnswer, pickWeighted } from "./utils";
 
 describe("question answer utilities", () => {
   it("normalizes casing and whitespace", () => {
@@ -41,5 +41,22 @@ describe("question answer utilities", () => {
     expect(getAnswerFormatHint("3/4")).toBe("請以分數形式作答（例如 3/4）");
     expect(getAnswerFormatHint("0.5")).toBe("請輸入小數（例如 0.5）");
     expect(getAnswerFormatHint("|x|")).toBe("請以絕對值形式作答（例如 |x|）");
+  });
+});
+
+describe("pickWeighted", () => {
+  it("never picks zero-weight items", () => {
+    const counts = { a: 0, b: 0 };
+    for (let i = 0; i < 50; i += 1) {
+      const picked = pickWeighted(["a", "b"] as const, (x) => (x === "a" ? 0 : 1));
+      counts[picked] += 1;
+    }
+    expect(counts.a).toBe(0);
+    expect(counts.b).toBe(50);
+  });
+
+  it("throws on empty or all-zero weights", () => {
+    expect(() => pickWeighted([], () => 1)).toThrow();
+    expect(() => pickWeighted(["a"], () => 0)).toThrow();
   });
 });
