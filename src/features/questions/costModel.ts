@@ -20,10 +20,32 @@ export const CHUNK_CONSTANTS = {
   // 主要調大四個分數運算常數，內部子 chunk 只微調以免多層相乘後過度膨脹。
   expandFraction: 0.8,
   absoluteValue: 0.8,
-  power: 0.75,
-  root: 0.75,
   symbolicSimplify: 0.75,
 } as const;
+
+export const POWER_TIER = {
+  2: { 1: 0.5, 2: 0.8, 3: 1.0, 4: 1.1 },
+  3: { 1: 0.7, 2: 1, 3: 1.1, 4: 1.4 },
+  4: { 1: 0.8, 2: 1, 3: 1.2, 4: 1.55 },
+} as const;
+
+export type PowerRootDegree = 2 | 3 | 4;
+export type DigitBucket = 1 | 2 | 3 | 4;
+
+export function digitBucketForTier(value: number): DigitBucket {
+  const abs = Math.abs(value);
+  if (abs === 0) return 1;
+  return Math.min(4, Math.floor(Math.log10(abs)) + 1) as DigitBucket;
+}
+
+export function powerRootTierMultiplier(degreeOrExponent: PowerRootDegree, value: number): number {
+  const bucket = digitBucketForTier(value);
+  return POWER_TIER[degreeOrExponent][bucket];
+}
+
+export function rootAnswerForTier(radicand: number, degree: PowerRootDegree): number {
+  return Math.round(Math.abs(radicand) ** (1 / degree));
+}
 
 export const TWO_DIGIT_MULTIPLY_BONUS = 1.25;
 
@@ -386,11 +408,11 @@ function powerInternalCost(n: number, exponent: 2 | 3 | 4): number {
   return integerInternalCost("multiply", abs, abs) + integerInternalCost("multiply", square, square);
 }
 
-function rootInternalCost(radicand: number): number {
-  const root = Math.sqrt(radicand);
-  if (!Number.isInteger(root)) return 2;
-  if (root <= 10) return 1;
-  if (root <= 16) return 2;
+function rootInternalCost(radicand: number, degree: 2 | 3 | 4): number {
+  const answer = rootAnswerForTier(radicand, degree);
+  if (answer ** degree !== Math.abs(radicand)) return 2;
+  if (answer <= 10) return 1;
+  if (answer <= 16) return 2;
   return 3;
 }
 
@@ -403,9 +425,15 @@ export function calculateCost(node: CostNode): number {
     case "absolute-value":
       return (node.inner ? calculateCost(node.inner) : 0) + CHUNK_CONSTANTS.absoluteValue;
     case "power":
-      return powerInternalCost(node.n, node.exponent) * CHUNK_CONSTANTS.power;
+      return (
+        powerInternalCost(node.n, node.exponent) *
+        powerRootTierMultiplier(node.exponent, node.n)
+      );
     case "root":
-      return rootInternalCost(node.radicand) * CHUNK_CONSTANTS.root;
+      return (
+        rootInternalCost(node.radicand, node.degree) *
+        powerRootTierMultiplier(node.degree, rootAnswerForTier(node.radicand, node.degree))
+      );
     case "symbolic-simplify":
       return 4 * CHUNK_CONSTANTS.symbolicSimplify;
     case "sum":

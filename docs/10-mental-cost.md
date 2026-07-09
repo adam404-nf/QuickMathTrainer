@@ -94,9 +94,30 @@ LCMChunk
 | IntegerChunk | 1.00 |
 | ExpandFractionChunk | **0.80** |
 | AbsoluteValueChunk | 0.80 |
-| PowerChunk / RootChunk | 0.75 |
+| PowerChunk / RootChunk | 見 §3.5 `POWER_TIER`（依指數／根次與有效數字查表） |
 
-### 3.4 LCM 分級權重
+### 3.5 Power / Root 分級權重
+
+Power 與 Root 共用同一張 `POWER_TIER` 表（定義於 [`costModel.ts`](../src/features/questions/costModel.ts)）。調參只需改此表一處。
+
+| 有效數字 | exp/deg = 2 | exp/deg = 3 | exp/deg = 4 |
+|---|---|---|---|
+| 1 | 0.50 | 0.70 | 0.80 |
+| 2 | 0.80 | 1.00 | 1.00 |
+| 3 | 1.00 | 1.10 | 1.20 |
+| 4+ | 1.10 | 1.40 | 1.55 |
+
+- **Power**：依底數 `|n|` 的十進位位數查表（≥4 位歸入 key `4`）。
+- **Root**：依答案 `|round(radicand^(1/degree))|` 的十進位位數查表（Power 的逆運算，故共用同一張表）。
+
+```text
+powerCost = powerInternalCost(n, exp) × POWER_TIER[exp][digitBucket(|n|)]
+rootCost  = rootInternalCost(radicand, degree) × POWER_TIER[degree][digitBucket(|answer|)]
+```
+
+例如 `5²`：底數 1 位 → tier `0.50`；`√25` 答案為 `5`（1 位）→ 同 tier `0.50`。
+
+### 3.6 LCM 分級權重
 
 | LCM 範圍 | Tier multiplier |
 |---|---|
@@ -122,7 +143,7 @@ lcm = 12 => tier 0.4
 => lcmChunkCost = 4 × 0.4 = 1.6
 ```
 
-### 3.5 GCD / 約分分級權重
+### 3.7 GCD / 約分分級權重
 
 約分不再使用固定 `fractionSimplification = 0.5`，而是依 Euclid steps 數決定 multiplier：
 
@@ -147,7 +168,7 @@ fractionSimplificationCost
 × gcdTierMultiplier(gcdSteps)
 ```
 
-### 3.6 小數與換算延伸 Chunk
+### 3.8 小數與換算延伸 Chunk
 
 小數題與「小數↔分數換算」題不新增獨立壓縮常數，而是**複用既有 Chunk**，僅在必要處乘上固定的換算 scale。對應實作於 [`calculationTemplates.ts`](../src/features/questions/calculationTemplates.ts) 的 `costForTemplateSpec()` 與 `costNodeFromCalculationTemplate()`。
 
@@ -310,7 +331,7 @@ fraction-to-decimal-explicit（每個分數運算元換成小數，× FRACTION_T
 + 依 op 對應的 decimal 運算（decimal-add / -subtract / -multiply）
 ```
 
-換算常數目前皆為 1（見 §3.6）；若選中路徑 out-of-range，交由生成流程 reroll（偏高）或 append（偏低），而非為單題調整換算 scale。
+換算常數目前皆為 1（見 §3.8）；若選中路徑 out-of-range，交由生成流程 reroll（偏高）或 append（偏低），而非為單題調整換算 scale。
 
 ### 7.3 與生成流程的銜接
 

@@ -959,23 +959,6 @@ export const powersTemplates: readonly QuestionTemplate[] = [
       distractors: [answer + 1, answer - 1, Math.abs(a), a * a].map(String),
     });
   },
-  ({ difficulty, kind }) => {
-    const a = -randomInt(2, 8);
-    const b = randomInt(1, 6);
-    const answer = Math.abs(a) + b;
-
-    return makeQuestion({
-      type: "powers",
-      prompt: `|${a}| + ${b} = ?`,
-      answer: String(answer),
-      difficulty,
-      tags: ["absolute-value", "addition"],
-      costTemplates: ct({ kind: "absolute-value" }, { kind: "integer-add", a: Math.abs(a), b }),
-      technique: powersAbsCompositeTechnique(a, answer, false),
-      kind,
-      distractors: [answer + 1, answer - 1, a + b, Math.abs(a) - b].map(String),
-    });
-  },
   ...powersCompositeTemplates,
 ];
 

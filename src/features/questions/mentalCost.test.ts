@@ -3,13 +3,17 @@ import {
   calculateCost,
   calculateQuestionCost,
   CHUNK_CONSTANTS,
+  digitBucketForTier,
   fractionCost,
   fractionSimplificationCost,
   fractionToDecimalInternalCost,
   integerCost,
   integerDivideInternalCost,
+  integerInternalCost,
   isTwoDigitMultiply,
   lcmTierMultiplier,
+  POWER_TIER,
+  powerRootTierMultiplier,
   TWO_DIGIT_MULTIPLY_BONUS,
   type CostNode,
 } from "./costModel";
@@ -101,6 +105,8 @@ describe("fraction chunk calibration", () => {
   it("uses configured chunk constants", () => {
     expect(CHUNK_CONSTANTS.expandFraction).toBe(0.8);
     expect(TWO_DIGIT_MULTIPLY_BONUS).toBe(1.25);
+    expect("power" in CHUNK_CONSTANTS).toBe(false);
+    expect("root" in CHUNK_CONSTANTS).toBe(false);
   });
 
   it("counts lcm chunk steps inside the chunk", () => {
@@ -110,6 +116,62 @@ describe("fraction chunk calibration", () => {
   it("uses gcd tier for simplification checks", () => {
     expect(fractionSimplificationCost(5, 6)).toBeCloseTo(1.2);
     expect(fractionSimplificationCost(11, 12)).toBeCloseTo(1.2);
+  });
+});
+
+describe("power and root tier multipliers", () => {
+  it("maps digit counts into tier buckets", () => {
+    expect(digitBucketForTier(0)).toBe(1);
+    expect(digitBucketForTier(5)).toBe(1);
+    expect(digitBucketForTier(12)).toBe(2);
+    expect(digitBucketForTier(350)).toBe(3);
+    expect(digitBucketForTier(1234)).toBe(4);
+  });
+
+  it("looks up shared POWER_TIER values", () => {
+    expect(POWER_TIER[2][1]).toBe(0.5);
+    expect(POWER_TIER[2][2]).toBe(0.8);
+    expect(POWER_TIER[3][1]).toBe(0.7);
+    expect(POWER_TIER[4][4]).toBe(1.55);
+    expect(powerRootTierMultiplier(2, 5)).toBe(0.5);
+    expect(powerRootTierMultiplier(2, 12)).toBe(0.8);
+    expect(powerRootTierMultiplier(3, 5)).toBe(0.7);
+  });
+
+  it.each([
+    {
+      label: "5^2",
+      node: { kind: "power", n: 5, exponent: 2 } as CostNode,
+      tier: 0.5,
+      internal: integerInternalCost("multiply", 5, 5),
+    },
+    {
+      label: "12^2",
+      node: { kind: "power", n: 12, exponent: 2 } as CostNode,
+      tier: 0.8,
+      internal: integerInternalCost("multiply", 12, 12),
+    },
+    {
+      label: "5^3",
+      node: { kind: "power", n: 5, exponent: 3 } as CostNode,
+      tier: 0.7,
+      internal:
+        integerInternalCost("multiply", 5, 5) + integerInternalCost("multiply", 25, 5),
+    },
+    {
+      label: "sqrt(25)",
+      node: { kind: "root", radicand: 25, degree: 2 } as CostNode,
+      tier: 0.5,
+      internal: 1,
+    },
+    {
+      label: "cbrt(8)",
+      node: { kind: "root", radicand: 8, degree: 3 } as CostNode,
+      tier: 0.7,
+      internal: 1,
+    },
+  ])("applies tier multiplier for $label", ({ node, tier, internal }) => {
+    expect(calculateCost(node)).toBe(internal * tier);
   });
 });
 
