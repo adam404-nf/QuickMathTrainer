@@ -146,7 +146,7 @@ function pickAppendCandidate(
   const relaxed = input?.relaxedConstraints ?? [];
   const themeTarget = relaxed.includes("theme-ratio")
     ? 0
-    : themeStepTarget(input ?? { mode, targetTags: input?.targetTags });
+    : themeStepTarget(input ?? { mode });
   let pool = eligible;
 
   if (themeTarget > 0) {
@@ -189,7 +189,6 @@ function formatAppendAnswer(value: number): string {
 function integerAppendBuilders(
   question: Question,
   currentValue: number,
-  input?: GenerateQuestionInput,
   options?: { relaxIntegerBase?: boolean },
 ): AppendBuilder[] {
   if (!Number.isFinite(currentValue)) {
@@ -332,7 +331,7 @@ function appendIntegerOperation(
     });
   }
 
-  const builders = integerAppendBuilders(question, currentValue, input);
+  const builders = integerAppendBuilders(question, currentValue);
   return pickAppendCandidate(question, builders, input);
 }
 
@@ -412,18 +411,6 @@ function decimalAppendBuilders(question: Question, currentValue: number): Append
       },
     },
   ];
-}
-
-function appendDecimalOperation(
-  question: Question,
-  currentValue: number,
-  input?: GenerateQuestionInput,
-): Question | undefined {
-  const builders = decimalAppendBuilders(question, currentValue);
-  if (builders.length === 0) {
-    return undefined;
-  }
-  return pickAppendCandidate(question, builders, input);
 }
 
 function fractionAppendBuilders(question: Question, left: Fraction): AppendBuilder[] {
@@ -550,18 +537,6 @@ function fractionAppendBuilders(question: Question, left: Fraction): AppendBuild
   ];
 }
 
-function appendFractionOperation(
-  question: Question,
-  left: Fraction,
-  input?: GenerateQuestionInput,
-): Question | undefined {
-  const builders = fractionAppendBuilders(question, left);
-  if (builders.length === 0) {
-    return undefined;
-  }
-  return pickAppendCandidate(question, builders, input);
-}
-
 function specialtyIntegerAppendBuilders(
   question: Question,
   currentValue: number,
@@ -571,7 +546,7 @@ function specialtyIntegerAppendBuilders(
   if (!isCategoryAllowed(mode, "integer")) {
     return [];
   }
-  return integerAppendBuilders(question, currentValue, input, { relaxIntegerBase: true });
+  return integerAppendBuilders(question, currentValue, { relaxIntegerBase: true });
 }
 
 export function appendArithmeticStep(question: Question, input?: GenerateQuestionInput): Question | undefined {

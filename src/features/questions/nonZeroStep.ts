@@ -91,11 +91,16 @@ export function hasAdjacentCancel(specs: readonly CalculationTemplateSpec[]): bo
     if (!prev || !next || prev.family !== next.family) {
       continue;
     }
-    if (prev.family === "addsub" && nearlyEqual(prev.delta + next.delta, 0)) {
+    if (
+      prev.family === "addsub" &&
+      next.family === "addsub" &&
+      nearlyEqual(prev.delta + next.delta, 0)
+    ) {
       return true;
     }
     if (
       prev.family === "muldiv" &&
+      next.family === "muldiv" &&
       prev.factor !== 0 &&
       next.factor !== 0 &&
       nearlyEqual(prev.factor * next.factor, 1)

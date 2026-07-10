@@ -16,7 +16,7 @@ import {
   questionTypeWeight,
   type TemplateCategory,
 } from "./selectionPolicy";
-import type { QuestionType } from "./types";
+import type { QuestionContext, QuestionType } from "./types";
 
 function categoryOf(q: { templateCategory?: TemplateCategory }): TemplateCategory {
   if (!q.templateCategory) {
@@ -276,8 +276,8 @@ describe("question registry", () => {
   }, 120_000);
 
   it("accumulates recentDecimalRatio across session context updates", () => {
-    let context = {
-      recentQuestionIds: [] as string[],
+    let context: QuestionContext = {
+      recentQuestionIds: [],
       seenQuestionIds: new Set<string>(),
     };
     let decimalCount = 0;
@@ -307,7 +307,7 @@ describe("question registry", () => {
       }),
     );
 
-    let sequential = { recentQuestionIds: [], seenQuestionIds: new Set<string>() };
+    let sequential: QuestionContext = { recentQuestionIds: [], seenQuestionIds: new Set<string>() };
     for (const question of questions) {
       sequential = updateQuestionContextAfterGenerate(sequential, question);
     }
