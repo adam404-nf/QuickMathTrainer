@@ -174,11 +174,11 @@
   color: var(--color-foreground);
   font-size: clamp(2rem, 9vw, 4rem);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: 1.35;
   margin: 0;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
   padding: var(--space-sm) 0;
   text-align: center;
 }
@@ -188,7 +188,11 @@
 }
 
 .prompt :global(.katex-display) {
+  display: inline-block;
   margin: 0;
+  max-width: none;
+  text-align: center;
+  width: max-content;
 }
 
 .strategy,
