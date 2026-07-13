@@ -16,6 +16,10 @@ describe("promptToLatex", () => {
     expect(promptToLatex("7² − 5² = ?")).toBe("7^{2} - 5^{2} = ?");
     expect(promptToLatex("∛27 + 4 = ?")).toBe("\\sqrt[3]{27} + 4 = ?");
     expect(promptToLatex("⁴√81 + 3 = ?")).toBe("\\sqrt[4]{81} + 3 = ?");
+    expect(promptToLatex("√144 = ?")).toBe("\\sqrt{144} = ?");
+    expect(promptToLatex("√((78)²) = ?")).toBe("\\sqrt{(78)^{2}} = ?");
+    expect(promptToLatex("√((-7)²) = ?")).toBe("\\sqrt{(-7)^{2}} = ?");
+    expect(promptToLatex("√(A²) = ?")).toBe("\\sqrt{A^{2}} = ?");
   });
 
   it("preserves absolute value and wraps decimal hint text", () => {
