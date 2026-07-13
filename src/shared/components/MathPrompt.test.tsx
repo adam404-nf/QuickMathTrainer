@@ -46,6 +46,10 @@ function stubWidth(element: HTMLElement, width: number) {
     configurable: true,
     get: () => width,
   });
+  Object.defineProperty(element, "offsetWidth", {
+    configurable: true,
+    get: () => width,
+  });
 }
 
 function stubHeight(element: HTMLElement, height: number) {
@@ -61,12 +65,26 @@ function stubHeight(element: HTMLElement, height: number) {
 
 describe("MathPrompt", () => {
   let resizeMock: ReturnType<typeof installResizeObserverMock>;
+  let resolveFonts!: () => void;
+  let originalFonts: FontFaceSet | undefined;
 
   beforeEach(() => {
     resizeMock = installResizeObserverMock();
+    originalFonts = document.fonts;
+    const fontsPromise = new Promise<FontFaceSet>((resolve) => {
+      resolveFonts = () => resolve(originalFonts ?? ({} as FontFaceSet));
+    });
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: { ready: fontsPromise },
+    });
   });
 
   afterEach(() => {
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: originalFonts,
+    });
     vi.unstubAllGlobals();
   });
 
@@ -94,15 +112,17 @@ describe("MathPrompt", () => {
     await waitFor(() => {
       expect(content.style.transform).toBe("scale(1)");
     });
+    expect(content.style.transformOrigin).toBe("top left");
     expect(content.style.marginBottom).toBe("0px");
+    expect(content.style.marginLeft).toBe("100px");
   });
 
-  it("scales the expression down so a long prompt fits without clipping height", async () => {
+  it("scales from the top-left and pads so edge glyphs are not clipped", async () => {
     render(
-      <MathPrompt text="((((43 + 14) ÷ 3 + 21 - 2) × 5) + 8) ÷ 2 = ?" />,
+      <MathPrompt text="|1/3 - 1/2| + 1/5 ÷ 3/8 = ? （分數）" />,
     );
 
-    const root = screen.getByLabelText("((((43 + 14) ÷ 3 + 21 - 2) × 5) + 8) ÷ 2 = ?");
+    const root = screen.getByLabelText("|1/3 - 1/2| + 1/5 ÷ 3/8 = ? （分數）");
     const probe = root.querySelector("[data-math-width-probe]") as HTMLElement;
     const content = root.querySelector("[data-math-content]") as HTMLElement;
     expect(content).not.toBeNull();
@@ -113,11 +133,39 @@ describe("MathPrompt", () => {
     resizeMock.notify();
 
     await waitFor(() => {
-      expect(content.style.transform).toBe("scale(0.4)");
+      expect(content.style.transform).toBe("scale(0.39)");
     });
-    // Collapse layout space with negative margin instead of a clipping height box.
-    expect(content.style.marginBottom).toBe("-60px");
+    expect(content.style.transformOrigin).toBe("top left");
+    expect(content.style.marginLeft).toBe("4px");
+    expect(content.style.marginBottom).toBe("-61px");
     expect(root.style.overflow).toBe("hidden");
+  });
+
+  it("remeasures after fonts become ready when the first paint used fallback metrics", async () => {
+    render(<MathPrompt text="|1/3 - 1/2| + 1/5 = ?" />);
+
+    const root = screen.getByLabelText("|1/3 - 1/2| + 1/5 = ?");
+    const probe = root.querySelector("[data-math-width-probe]") as HTMLElement;
+    const content = root.querySelector("[data-math-content]") as HTMLElement;
+
+    // First paint: container ready, but KaTeX fonts not loaded yet → narrower metrics.
+    stubWidth(probe, 320);
+    stubWidth(content, 300);
+    stubHeight(content, 100);
+    resizeMock.notify();
+
+    await waitFor(() => {
+      expect(content.style.transform).toBe("scale(1)");
+    });
+
+    // Fonts settle: expression becomes wider than the card.
+    stubWidth(content, 800);
+    resolveFonts();
+
+    await waitFor(() => {
+      expect(content.style.transform).toBe("scale(0.39)");
+    });
+    expect(content.style.marginLeft).toBe("4px");
   });
 
   it("does not oscillate when ResizeObserver fires again after scaling", async () => {
@@ -135,14 +183,14 @@ describe("MathPrompt", () => {
     resizeMock.notify();
 
     await waitFor(() => {
-      expect(content.style.transform).toBe("scale(0.4)");
+      expect(content.style.transform).toBe("scale(0.39)");
     });
 
     resizeMock.notify();
     resizeMock.notify();
     resizeMock.notify();
 
-    expect(content.style.transform).toBe("scale(0.4)");
-    expect(content.style.marginBottom).toBe("-60px");
+    expect(content.style.transform).toBe("scale(0.39)");
+    expect(content.style.marginLeft).toBe("4px");
   });
 });

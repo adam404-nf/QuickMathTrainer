@@ -22,8 +22,11 @@ describe("promptToLatex", () => {
     expect(promptToLatex("√(A²) = ?")).toBe("\\sqrt{A^{2}} = ?");
   });
 
-  it("preserves absolute value and wraps decimal hint text", () => {
-    expect(promptToLatex("|−3| + 5 × 2 = ?")).toBe("|-3| + 5 \\times 2 = ?");
+  it("wraps absolute values as left/right delimiters and wraps decimal hint text", () => {
+    expect(promptToLatex("|−3| + 5 × 2 = ?")).toBe("\\left|-3\\right| + 5 \\times 2 = ?");
+    expect(promptToLatex("|1/3 - 1/2| + 1/5 ÷ 3/8 = ? （分數）")).toBe(
+      "\\left|\\frac{1}{3} - \\frac{1}{2}\\right| + \\frac{1}{5} \\div \\frac{3}{8} = ? \\text{（分數）}",
+    );
     expect(promptToLatex("3/4 = ? (小數)")).toBe("\\frac{3}{4} = ? \\text{（小數）}");
   });
 });

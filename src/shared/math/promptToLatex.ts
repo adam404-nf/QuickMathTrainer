@@ -10,7 +10,7 @@ const SQRT_RADICAND = String.raw`(?:\d+|\((?:[^()]|\([^()]*\))*\))`;
 export function promptToLatex(prompt: string): string {
   let latex = prompt;
 
-  latex = latex.replace(/ \((小數)\)$/, " \\text{（$1）}");
+  latex = latex.replace(/ [（(](小數|分數)[）)]$/, " \\text{（$1）}");
   latex = latex.replace(/⁴√(\d+)/g, "\\sqrt[4]{$1}");
   latex = latex.replace(/∛(\d+)/g, "\\sqrt[3]{$1}");
   latex = latex.replace(new RegExp(`√(${SQRT_RADICAND})`, "g"), (_, radicand: string) => {
@@ -24,6 +24,8 @@ export function promptToLatex(prompt: string): string {
   latex = latex.replace(/×/g, "\\times");
   latex = latex.replace(/÷/g, "\\div");
   latex = latex.replace(/−/g, "-");
+  // After fraction conversion so |1/3| becomes \left|\frac{1}{3}\right|
+  latex = latex.replace(/\|([^|]+)\|/g, "\\left|$1\\right|");
 
   return latex;
 }
